@@ -54,7 +54,7 @@ def main():
     # gradio wabui, reference: https://huggingface.co/spaces/fishaudio/fish-speech-1
     gui_title = 'StableTTS'
     gui_description = """Next-generation TTS model using flow-matching and DiT, inspired by Stable Diffusion 3."""
-    example_text = """你指尖跳动的电光，是我永恒不变的信仰。唯我超电磁炮永世长存！"""
+    example_text = """こんにちは、今日はいい天気ですね！"""
     
     with gr.Blocks(theme=gr.themes.Base()) as demo:
         demo.load(None, None, js="() => {const params = new URLSearchParams(window.location.search);if (!params.has('__theme')) {params.set('__theme', 'light');window.location.search = params.toString();}}")
@@ -80,7 +80,7 @@ def main():
                 language_gr = gr.Dropdown(
                     label='Language',
                     choices=list(model.supported_languages),
-                    value = 'chinese'
+                    value = 'japanese'
                 )
                 
                 step_gr = gr.Slider(
