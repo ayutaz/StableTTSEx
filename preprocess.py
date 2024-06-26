@@ -21,7 +21,7 @@ class DataConfig:
     input_filelist_path = './filelists/filelist.txt' # a filelist contains 'audiopath | text'
     output_filelist_path = './filelists/filelist.json' # path to save filelist
     output_feature_path = './stableTTS_datasets' # path to save resampled audios and mel features
-    language = 'english' # chinese, japanese or english
+    language = 'japanese' # chinese, japanese or english
     resample = False # waveform is not used in training, so save resampled results is not necessary.
 
 g2p_mapping = {

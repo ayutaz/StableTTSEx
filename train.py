@@ -1,5 +1,5 @@
 import os
-# os.environ['CUDA_VISIBLE_DEVICES'] = '0,1'
+os.environ['CUDA_VISIBLE_DEVICES'] = '0,1'
 
 import torch
 import torch.optim as optim
@@ -47,6 +47,15 @@ def train(rank, world_size):
     _init_config(model_config, mel_config, train_config)
     
     model = StableTTS(len(symbols), mel_config.n_mels, **asdict(model_config)).to(rank)
+    
+    # パラメータ数を計算
+    total_params = sum(p.numel() for p in model.parameters())
+    trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    
+    # rank 0のプロセスでのみパラメータ数を表示
+    if rank == 0:
+        print(f"Total parameters: {total_params:,}")
+        print(f"Trainable parameters: {trainable_params:,}")
     
     model = DDP(model, device_ids=[rank])
 
