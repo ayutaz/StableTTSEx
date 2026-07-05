@@ -1,8 +1,8 @@
 <div align="center">
 
-# StableTTS
+# StableTTSEx
 
-Next-generation TTS model using flow-matching and DiT, inspired by [Stable Diffusion 3](https://stability.ai/news/stable-diffusion-3).
+Fork of [KdaiP/StableTTS](https://github.com/KdaiP/StableTTS) (v1.1): next-generation TTS model using flow-matching and DiT, inspired by [Stable Diffusion 3](https://stability.ai/news/stable-diffusion-3).
 
 
 </div>
@@ -12,6 +12,12 @@ Next-generation TTS model using flow-matching and DiT, inspired by [Stable Diffu
 As the first open-source TTS model that tried to combine flow-matching and DiT, **StableTTS** is a fast and lightweight TTS model for chinese, english and japanese speech generation. It has 31M parameters. 
 
 ✨ **Huggingface demo:** [🤗](https://huggingface.co/spaces/KdaiP/StableTTS1.1)
+
+### About this fork
+
+- Japanese is the default language in `webui.py` and `preprocess.py`.
+- `generate-audio-list.py` converts a Style-Bert-VITS2 style `esd.list` (`file|speaker|lang|text`) into the `filelist.txt` used by preprocessing.
+- Dependencies are managed with [uv](https://docs.astral.sh/uv/) (`pyproject.toml` + `uv.lock`). Python is pinned to 3.11 and CUDA-enabled PyTorch (2.8 + cu128) is resolved automatically — no manual PyTorch installation needed.
 
 ## News
 
@@ -53,19 +59,31 @@ Choose a vocoder (`vocos` or `firefly-gan` ) and place it in the `./vocoders/pre
 
 ## Installation
 
-1. **Install pytorch**: Follow the [official PyTorch guide](https://pytorch.org/get-started/locally/) to install pytorch and torchaudio. We recommend the latest version (tested with PyTorch 2.4 and Python 3.12).
+1. **Install uv**: Follow the [official uv guide](https://docs.astral.sh/uv/getting-started/installation/).
 
-2. **Install Dependencies**: Run the following command to install the required Python packages:
+2. **Install Dependencies**: Run the following command in the repository root. uv installs Python 3.11 (pinned in `.python-version`) and all packages, including PyTorch 2.8 with CUDA 12.8, automatically:
 
 ```bash
-pip install -r requirements.txt
+uv sync --extra webui   # training + inference + Gradio WebUI
+# uv sync               # without the WebUI (skips gradio/matplotlib)
+# add --extra recipes to use the dataset scripts in ./recipes (openpyxl, pandas)
 ```
+
+Notes:
+
+- The first sync downloads over 2.5GB of PyTorch CUDA wheels.
+- On Windows, stop running Python processes (webui, tensorboard, Jupyter) before `uv sync`, otherwise locked torch DLLs may fail to update.
+- On macOS, the CPU build of PyTorch is installed instead.
 
 ## Inference
 
 For detailed inference instructions, please refer to `inference.ipynb`
 
-We also provide a webui based on gradio, please refer to `webui.py`
+We also provide a webui based on gradio:
+
+```bash
+uv run python webui.py
+```
 
 ## Training
 
@@ -73,9 +91,17 @@ StableTTS is designed to be trained easily. We only need text and audio pairs, w
 
 ### Preparing Your Data
 
-1. **Generate Text and Audio pairs**: Generate the text and audio pair filelist as `./filelists/example.txt`. Some recipes of open-source datasets could be found in `./recipes`.
+1. **Generate Text and Audio pairs**: Generate the text and audio pair filelist as `./filelists/example.txt`. Some recipes of open-source datasets could be found in `./recipes`. If your dataset uses a Style-Bert-VITS2 style `esd.list`, convert it with:
 
-2. **Run Preprocessing**: Adjust the `DataConfig` in `preprocess.py` to set your input and output paths, then run the script. This will process the audio and text according to your list, outputting a JSON file with paths to mel features and phonemes. 
+```bash
+uv run python generate-audio-list.py
+```
+
+2. **Run Preprocessing**: Adjust the `DataConfig` in `preprocess.py` to set your input and output paths, then run the script. This will process the audio and text according to your list, outputting a JSON file with paths to mel features and phonemes.
+
+```bash
+uv run python preprocess.py
+```
 
 **Note: Process multilingual data separately by changing the `language` setting in `DataConfig`**
 
@@ -83,7 +109,13 @@ StableTTS is designed to be trained easily. We only need text and audio pairs, w
 
 1. **Adjust Training Configuration**:  In `config.py`, modify `TrainConfig` to set your file list path and adjust training parameters (such as batch_size) as needed.
 
-2. **Start the Training Process**: Launch `train.py` to start training your model. 
+2. **Start the Training Process**:
+
+```bash
+uv run python train.py
+```
+
+Training logs can be monitored with `uv run tensorboard --logdir runs`.
 
 Note: For finetuning, download the pretrained model and place it in the `model_save_path` directory specified in  `TrainConfig`. Training script will automatically detect and load the pretrained checkpoint.
 

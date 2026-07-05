@@ -1,0 +1,63 @@
+[project]
+name = "stablettsex"
+version = "1.1.0"
+description = "StableTTSEx: fork of KdaiP/StableTTS (flow-matching + DiT TTS, zh/en/ja) with Japanese defaults"
+readme = "README.md"
+# pyopenjtalk-prebuilt の Windows wheel が cp311 までのため 3.11 に固定。
+# Python 3.12+ にする場合は pyopenjtalk（要ソースビルド: MSVC + cmake + cython）へ差し替えること。
+requires-python = ">=3.11,<3.12"
+dependencies = [
+    # torchaudio 2.9+ は load/save が TorchCodec 委譲になるため 2.8 系に固定
+    # CUDA 版は [tool.uv.sources] で cu128 インデックスから解決される
+    "torch==2.8.*",
+    "torchaudio==2.8.*",
+
+    # pyopenjtalk-prebuilt が numpy 2 と ABI 非互換のため <2 を維持
+    "numpy>=1.26,<2",
+    "tqdm",
+    "soundfile",   # torchaudio の音声 I/O バックエンド確保用（直接 import なし・削除不可）
+    "tensorboard", # torch.utils.tensorboard.SummaryWriter が要求
+    "numba>=0.59", # monotonic_align（推論経路でも必須）
+    "torchdiffeq", # ODE ソルバー
+
+    # g2p（api.py が全言語を無条件 import するため日本語のみの運用でも全部必要）
+    "pypinyin",
+    "jieba",
+    "eng-to-ipa",
+    "unidecode",
+    "inflect",
+    # open_jtalk 辞書の自動 DL に失敗する場合:
+    # https://github.com/r9y9/open_jtalk/releases/download/v1.11.1/open_jtalk_dic_utf_8-1.11.tar.gz
+    # を展開し OPEN_JTALK_DICT_DIR 環境変数にパスを設定する
+    "pyopenjtalk-prebuilt",
+    # pyopenjtalk-prebuilt が実行時に pkg_resources を要求する。
+    # setuptools 81+ で pkg_resources は非推奨化され 83 で削除されたため <81 に固定
+    "setuptools<81",
+]
+
+[project.optional-dependencies]
+webui = [
+    "gradio>=5,<6", # gradio 6 は破壊的 API 変更あり。webui.py 検証後に上げる
+    "matplotlib",
+]
+recipes = [
+    "openpyxl", # recipes/genshin_*.py
+    "pandas",   # recipes/VCTK_huggingface.py
+]
+
+[tool.uv]
+# スクリプト集であり配布パッケージではないため、プロジェクト自身のビルドを無効化
+package = false
+
+[[tool.uv.index]]
+name = "pytorch-cu128"
+url = "https://download.pytorch.org/whl/cu128"
+explicit = true
+
+[tool.uv.sources]
+torch = [
+    { index = "pytorch-cu128", marker = "sys_platform == 'win32' or sys_platform == 'linux'" },
+]
+torchaudio = [
+    { index = "pytorch-cu128", marker = "sys_platform == 'win32' or sys_platform == 'linux'" },
+]
