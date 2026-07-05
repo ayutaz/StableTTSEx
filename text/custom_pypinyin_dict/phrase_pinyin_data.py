@@ -18,7 +18,6 @@ phrases_dict.update(genshin.phrases_dict)
 
 def load():
     load_phrases_dict(phrases_dict)
-    print("加载自定义词典成功")
 
 if __name__ == '__main__':
     print(phrases_dict)
