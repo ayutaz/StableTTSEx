@@ -18,7 +18,7 @@ As the first open-source TTS model that tried to combine flow-matching and DiT, 
 - Japanese is the default language in `webui.py` and `preprocess.py`.
 - Japanese g2p uses [pyopenjtalk-plus](https://github.com/tsukumijima/pyopenjtalk-plus) (maintained fork of pyopenjtalk with a bundled dictionary — no runtime download). `extract_fullcontext` is called with `use_vanilla=True` to keep the phoneme output aligned with the pretrained checkpoint.
 - `generate-audio-list.py` converts a Style-Bert-VITS2 style `esd.list` (`file|speaker|lang|text`) into the `filelist.txt` used by preprocessing.
-- Dependencies are managed with [uv](https://docs.astral.sh/uv/) (`pyproject.toml` + `uv.lock`). Python is pinned to 3.11 and CUDA-enabled PyTorch (2.8 + cu128) is resolved automatically — no manual PyTorch installation needed.
+- Dependencies are managed with [uv](https://docs.astral.sh/uv/) (`pyproject.toml` + `uv.lock`). Python is pinned to 3.13 and CUDA-enabled PyTorch (2.8 + cu128) is resolved automatically — no manual PyTorch installation needed.
 
 ## News
 
@@ -62,7 +62,7 @@ Choose a vocoder (`vocos` or `firefly-gan` ) and place it in the `./vocoders/pre
 
 1. **Install uv**: Follow the [official uv guide](https://docs.astral.sh/uv/getting-started/installation/).
 
-2. **Install Dependencies**: Run the following command in the repository root. uv installs Python 3.11 (pinned in `.python-version`) and all packages, including PyTorch 2.8 with CUDA 12.8, automatically:
+2. **Install Dependencies**: Run the following command in the repository root. uv installs Python 3.13 (pinned in `.python-version`) and all packages, including PyTorch 2.8 with CUDA 12.8, automatically:
 
 ```bash
 uv sync --extra webui   # training + inference + Gradio WebUI

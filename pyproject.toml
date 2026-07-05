@@ -3,22 +3,22 @@ name = "stablettsex"
 version = "1.1.0"
 description = "StableTTSEx: fork of KdaiP/StableTTS (flow-matching + DiT TTS, zh/en/ja) with Japanese defaults"
 readme = "README.md"
-# 3.11 固定は環境再現性のため（pyopenjtalk-plus は cp311〜cp314 の wheel を提供済み）。
-# 引き上げは torch cu128 wheel / numba / numpy の対応確認と venv 再構築を伴うため別コミットで行うこと。
-requires-python = ">=3.11,<3.12"
+# 3.13 固定（単一マイナー固定で環境再現性を確保）。上限 <3.14 は方針に加え技術的制約でもある:
+# torch 2.8+cu128 と pyopenjtalk-plus に cp314 の Windows wheel が存在しない。
+requires-python = ">=3.13,<3.14"
 dependencies = [
     # torchaudio 2.9+ は load/save が TorchCodec 委譲になるため 2.8 系に固定
     # CUDA 版は [tool.uv.sources] で cu128 インデックスから解決される
     "torch==2.8.*",
     "torchaudio==2.8.*",
 
-    # <2 は旧 pyopenjtalk-prebuilt の ABI 制約の名残。pyopenjtalk-plus は numpy 2 対応のため
-    # 緩和可能だが、numba/torch/soundfile 一式の再検証を伴うため別コミットで行う
-    "numpy>=1.26,<2",
+    # >=2.1 は cp313 の win wheel が存在する最初の系列。<2.5 は numba 0.66 の numpy 対応上限
+    # （numba が numpy 2.5 に対応したら緩和可）
+    "numpy>=2.1,<2.5",
     "tqdm",
     "soundfile",   # torchaudio の音声 I/O バックエンド確保用（直接 import なし・削除不可）
     "tensorboard", # torch.utils.tensorboard.SummaryWriter が要求
-    "numba>=0.59", # monotonic_align（推論経路でも必須）
+    "numba>=0.65", # monotonic_align（推論経路でも必須）。numpy 2.4 対応は 0.65 以降
     "torchdiffeq", # ODE ソルバー
 
     # g2p（api.py が全言語を無条件 import するため日本語のみの運用でも全部必要）
