@@ -81,7 +81,10 @@ def japanese_to_romaji_with_accent(text):
         if re.match(_japanese_characters, sentence):
             if text != '':
                 text += ' '
-            labels = pyopenjtalk.extract_fullcontext(sentence)
+            # use_vanilla=True: pyopenjtalk-plus 独自の読み後処理（Sudachi 同形異音語補正・「何」の ONNX 推定）を
+            # 無効化し、事前学習チェックポイント学習時の素の OpenJTalk の挙動に揃える
+            # （onnxruntime の有無で読みが変わる環境依存も排除する）
+            labels = pyopenjtalk.extract_fullcontext(sentence, use_vanilla=True)
             for n, label in enumerate(labels):
                 phoneme = re.search(r'\-([^\+]*)\+', label).group(1)
                 if phoneme not in ['sil', 'pau']:

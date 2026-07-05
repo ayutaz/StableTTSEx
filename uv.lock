@@ -164,28 +164,6 @@ wheels = [
 ]
 
 [[package]]
-name = "cython"
-version = "3.2.8"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/b6/6b/80101e02ebacaf9232ecf32bf6a788d36b27d820ee02434746252569ef98/cython-3.2.8.tar.gz", hash = "sha256:f4f23a56b25221a06f91817fe8f3114ab8b48a4fac73187dbb64bc2c4a87961f", size = 3290300, upload-time = "2026-06-30T07:41:57.874Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/25/44/379c4f16d6b9e920ca8d00dc3bb96ea3f4fb8b73ed8b99c136a7667e2605/cython-3.2.8-cp311-cp311-macosx_11_0_arm64.whl", hash = "sha256:a7761e1a97081b707a9ea4fb7c8ecdeddcc6b5ae00dda0f0b7bbf933c1b599f9", size = 2977552, upload-time = "2026-06-30T07:42:15.673Z" },
-    { url = "https://files.pythonhosted.org/packages/b6/9e/957e489fd7da81771407907502a78efa5989473fbc5ca25ec099adac8754/cython-3.2.8-cp311-cp311-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:84def174fbf8886fb026e04716908276c074d8c231e66db803abd04afcdcb998", size = 3304081, upload-time = "2026-06-30T07:42:17.463Z" },
-    { url = "https://files.pythonhosted.org/packages/1d/f2/03c283e0baf610a29b148ac3e9e85a8d15c31703cb492f9f41b634604096/cython-3.2.8-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:a134a19bba6ce7b1dd21dedc5cb2d4ea39a4177e42e535e333786eb9d0ba61a7", size = 3457242, upload-time = "2026-06-30T07:42:19.406Z" },
-    { url = "https://files.pythonhosted.org/packages/72/ce/1c18ba78abb311d2042a5510b0ac5d47f1a196a2af0cd184d0b1a8907a8a/cython-3.2.8-cp311-cp311-win_amd64.whl", hash = "sha256:6c9bf89ac1d43a9e1c3bfee61e7b4dd8d1ef7a610001aa7779f0cb824bad8ae7", size = 2787555, upload-time = "2026-06-30T07:42:21.518Z" },
-    { url = "https://files.pythonhosted.org/packages/92/a2/0f2eaa5076bcaef52567471a54ce02ffd70007bf8688cd054f7aab9bc3b8/cython-3.2.8-cp39-abi3-macosx_10_9_x86_64.whl", hash = "sha256:127bc4039be48c6eebe7f1d68c33d23eb3a0c5ae95e1d730bdd048837751438b", size = 2892527, upload-time = "2026-06-30T07:42:55.45Z" },
-    { url = "https://files.pythonhosted.org/packages/a4/08/b5488aef44662e48ac09b42d4cb398207f591c770797036fb1d6fbeb7a52/cython-3.2.8-cp39-abi3-manylinux1_i686.manylinux_2_28_i686.manylinux_2_5_i686.whl", hash = "sha256:e480ae9f195cd29e5ce334e3d434c83dbac0783c0cc88f2407e31ba997724192", size = 3220335, upload-time = "2026-06-30T07:42:57.403Z" },
-    { url = "https://files.pythonhosted.org/packages/7c/96/d04a3621045e9fe9c7c5e406a688ee3d6e04a65f545ea7c622ead4b4afd8/cython-3.2.8-cp39-abi3-manylinux2014_armv7l.manylinux_2_17_armv7l.manylinux_2_31_armv7l.whl", hash = "sha256:3142407b9d63f233c766e17000e2aac782411bf0409b9adc97cb7c320aecd199", size = 2876481, upload-time = "2026-06-30T07:42:59.406Z" },
-    { url = "https://files.pythonhosted.org/packages/71/9a/daa259b638c5eabb8a8c36f203b85b01b5362101ff8fc4ec6ad592d34bb3/cython-3.2.8-cp39-abi3-musllinux_1_2_aarch64.whl", hash = "sha256:41c118fd91d320cd72af26e29232ff3f1a0a170c47d477c9a176d766067a4718", size = 2999974, upload-time = "2026-06-30T07:43:01.29Z" },
-    { url = "https://files.pythonhosted.org/packages/21/de/71cc5b4be5ee4d34c3302b6e7272189106a4072e9890d284d05239d2b645/cython-3.2.8-cp39-abi3-musllinux_1_2_armv7l.whl", hash = "sha256:6335c6e8737a39734e20d25f89f425bf3274c104fc7efc05aacc7ed1a4858c9d", size = 2897932, upload-time = "2026-06-30T07:43:03.606Z" },
-    { url = "https://files.pythonhosted.org/packages/5d/0c/da68b9d3056e90b2060970b50d575cd7fcd1c778e8f23cc467f346e1d471/cython-3.2.8-cp39-abi3-musllinux_1_2_i686.whl", hash = "sha256:1034facc082cb882e1e5beb61e136ae8e282df2eafa11e9771e9b0a15c860801", size = 3235980, upload-time = "2026-06-30T07:43:05.486Z" },
-    { url = "https://files.pythonhosted.org/packages/36/0b/d88bc50e66fd1f1160dd2677d9af18273a2fb2f102c086d21f64a5a9c78b/cython-3.2.8-cp39-abi3-musllinux_1_2_x86_64.whl", hash = "sha256:8896ff6b133f346ebcf22aa23706c4031e8d9d5ae184433dfc67dc1053318b69", size = 3118504, upload-time = "2026-06-30T07:43:07.485Z" },
-    { url = "https://files.pythonhosted.org/packages/db/de/511c4364808b3b4036d051a0301b0b142a3ddf8a319bfdbbd474fcfdc879/cython-3.2.8-cp39-abi3-win32.whl", hash = "sha256:3fd6464433d925cba66ae31bf5780c8a469a06da1d109180cffb39ee3c88ae20", size = 2435866, upload-time = "2026-06-30T07:43:09.367Z" },
-    { url = "https://files.pythonhosted.org/packages/18/4f/911b2b2a0a02be15829ccbf0c906029a318efbf53d9f8e021e438261c206/cython-3.2.8-cp39-abi3-win_arm64.whl", hash = "sha256:4e9447d9b652396a285cdfbd4f9f0721842c63c6df281720e87dcc4b9ea65af5", size = 2457829, upload-time = "2026-06-30T07:43:11.645Z" },
-    { url = "https://files.pythonhosted.org/packages/c4/19/31aa63ab719b2e1eea5f200a8a54e2591dc1966a6b75e3de30ef8be9bc2c/cython-3.2.8-py3-none-any.whl", hash = "sha256:f635e113677666de13a2ec2979e9b1d5b90617cdfd1a691d3559be81e2dd6cb9", size = 1258688, upload-time = "2026-06-30T07:41:55.624Z" },
-]
-
-[[package]]
 name = "eng-to-ipa"
 version = "0.0.2"
 source = { registry = "https://pypi.org/simple" }
@@ -946,28 +924,20 @@ wheels = [
 ]
 
 [[package]]
-name = "pyopenjtalk-prebuilt"
-version = "0.3.0"
+name = "pyopenjtalk-plus"
+version = "0.4.1.post8"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "cython" },
     { name = "numpy" },
-    { name = "six" },
-    { name = "tqdm" },
+    { name = "sudachidict-core" },
+    { name = "sudachipy" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/5d/8a/054037f3c9517b0ed318b1817a6fa650fb88c4f6972afcb3452df9ee33d9/pyopenjtalk_prebuilt-0.3.0.tar.gz", hash = "sha256:b32fadb3de1af622af2e4f6e67fd8a07d141cb854264aa793322a34ad257d33f", size = 1400616, upload-time = "2023-04-19T15:32:06.417Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/8f/de/004b053d6e5a319dd5072a74aa2bd68e71a8ba5f3acdf6e78381aed94898/pyopenjtalk_plus-0.4.1.post8.tar.gz", hash = "sha256:f4dfbfbe9021d33c708f04ca5a27008c4f72a9fed097718ca3234d318a7a45e1", size = 24935840, upload-time = "2026-03-30T22:16:07.243Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/d5/22/c3135f76a5915a0cfb4f2d28bf3b972224a85940a0795c828bb3a0c11f2b/pyopenjtalk_prebuilt-0.3.0-cp311-cp311-macosx_10_9_universal2.whl", hash = "sha256:b49c7508d367f4301b058138024d8ac0f53199fc39ad6031bb26b42d1b6c8fd1", size = 1592989, upload-time = "2023-04-19T15:30:49.539Z" },
-    { url = "https://files.pythonhosted.org/packages/8c/15/f067fd4095f3cf46195e7b1761eadc2ea29fc593a0a408428f9c583c4f32/pyopenjtalk_prebuilt-0.3.0-cp311-cp311-macosx_10_9_x86_64.whl", hash = "sha256:15efb1ecc34fb055233c245b598fa40f06b0f2c8c55c61589365e6f786071200", size = 1115763, upload-time = "2023-04-19T15:30:51.557Z" },
-    { url = "https://files.pythonhosted.org/packages/b1/72/41b0ff88cc44148dd4c65918f539c8b889333dc7929a6dd7f1139054ae1b/pyopenjtalk_prebuilt-0.3.0-cp311-cp311-macosx_11_0_arm64.whl", hash = "sha256:c109225e06721641fc15a3f8fc8175b786549a0031fc4a2df2dcff0c36cc1625", size = 1086629, upload-time = "2023-04-19T15:30:52.77Z" },
-    { url = "https://files.pythonhosted.org/packages/d4/7b/0238c429569776e2c0bdad0dd02b3ed4befd8512424e50ea9732d3b0a1a9/pyopenjtalk_prebuilt-0.3.0-cp311-cp311-manylinux_2_12_i686.manylinux2010_i686.manylinux_2_17_i686.manylinux2014_i686.whl", hash = "sha256:a0eb8a3cbe1a76eb520d0eb966229b4d7f11921a95f3d6ac3f0c606985816fad", size = 5995661, upload-time = "2023-04-19T15:30:54.42Z" },
-    { url = "https://files.pythonhosted.org/packages/e5/b0/215dfc059526b52fe6417965ff1e85fb2a7e6b03e752237e6fb5810a3b26/pyopenjtalk_prebuilt-0.3.0-cp311-cp311-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:d3248c9c6eff6042b8cfd0edb8066a79a7f046861e08635df878385491556e35", size = 6226669, upload-time = "2023-04-20T14:53:52.247Z" },
-    { url = "https://files.pythonhosted.org/packages/ce/c0/08ed1f029e9f1285436b4cd10cacbc50082f352160e4d7be3add577ff3f4/pyopenjtalk_prebuilt-0.3.0-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:44e72ed8c22f7d33dbf5c3c833e2d1c74f3ac6dba81aba2c08662b37d2efdbc7", size = 6170991, upload-time = "2023-04-19T15:30:56.184Z" },
-    { url = "https://files.pythonhosted.org/packages/a4/f7/abef5b94cc6479e9853bb25989b93a18ebc6a7f95b05a6cb94b9d812d9c2/pyopenjtalk_prebuilt-0.3.0-cp311-cp311-musllinux_1_1_aarch64.whl", hash = "sha256:1302eecec0fde250cac913ea20e4c7e1e747981e8cb39ac039a08202c30b978d", size = 6545629, upload-time = "2023-04-20T14:53:54.878Z" },
-    { url = "https://files.pythonhosted.org/packages/df/03/3f967d09b60fe4e7efb40352e2cdadae73aee1e4f53e1110f93a9269e647/pyopenjtalk_prebuilt-0.3.0-cp311-cp311-musllinux_1_1_i686.whl", hash = "sha256:c54f7a2d433d2d09dc8d5095ae299b8905a2f8ddf68224e8a56b64fbd23f896a", size = 6411906, upload-time = "2023-04-19T15:30:58.637Z" },
-    { url = "https://files.pythonhosted.org/packages/94/d6/37e110fb140dc34b16410c567bc48aa62854f7842559880ea46b205528a2/pyopenjtalk_prebuilt-0.3.0-cp311-cp311-musllinux_1_1_x86_64.whl", hash = "sha256:5c7287d62260b34828c329330e8afbabd5edc92d79c398ee12d2c285efef3084", size = 6504586, upload-time = "2023-04-19T15:31:00.749Z" },
-    { url = "https://files.pythonhosted.org/packages/07/d6/f6b0008d509c8b4efdffd0b27b2b3068d005527fb2c2d2768058e05b410c/pyopenjtalk_prebuilt-0.3.0-cp311-cp311-win32.whl", hash = "sha256:310f3ab429985e432cc810f7a204a7a49b70c33f53db906ec9fe8eb60b1bd538", size = 894045, upload-time = "2023-04-19T15:31:02.108Z" },
-    { url = "https://files.pythonhosted.org/packages/b1/20/d93a7b6f9523819462e55663f42aaa93effebc8f30c65f288c4976555cc7/pyopenjtalk_prebuilt-0.3.0-cp311-cp311-win_amd64.whl", hash = "sha256:3c31bbee7d3ab300b99321ad130d33db7e8b0832ab41c40444a3066c2f44e8e5", size = 919290, upload-time = "2023-04-19T15:31:04.54Z" },
+    { url = "https://files.pythonhosted.org/packages/75/c3/e22008a011181c6b618c7453875abdb423e660d7391beece53ef9b770e84/pyopenjtalk_plus-0.4.1.post8-cp311-cp311-macosx_10_9_universal2.whl", hash = "sha256:173746917da672947ee1be0555ccc7c251196816642c7d53dbbea9ec932befad", size = 25486973, upload-time = "2026-03-30T22:15:10.551Z" },
+    { url = "https://files.pythonhosted.org/packages/5c/a0/870c35b3b9eb6bb6fda1868db2573454802dc1c8938523235f7a51ad7f66/pyopenjtalk_plus-0.4.1.post8-cp311-cp311-manylinux_2_24_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:96e42f05180711ccd6cfe62f3bda72a827d472426bbf5fd8130d41dc5054e8cd", size = 30911421, upload-time = "2026-03-30T22:15:13.333Z" },
+    { url = "https://files.pythonhosted.org/packages/0b/e0/754eb8ee3405278c9db42f1a7561f776615e90cd71f33aa22b0af6270fba/pyopenjtalk_plus-0.4.1.post8-cp311-cp311-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:a6e817a4b109164b5cfe46b9652933d20041cc836d28f8a74cd032ecf9ad7ae4", size = 30979183, upload-time = "2026-03-30T22:15:16.441Z" },
+    { url = "https://files.pythonhosted.org/packages/af/83/21b0a1623f1028c0aba6ca7c594d050f47652db3d4297f8f9f406fba5427/pyopenjtalk_plus-0.4.1.post8-cp311-cp311-win_amd64.whl", hash = "sha256:21abfe4809b0913dd489818f87894976f995c769099c040f6537df87355e75fa", size = 24749505, upload-time = "2026-03-30T22:15:18.871Z" },
 ]
 
 [[package]]
@@ -1173,9 +1143,8 @@ dependencies = [
     { name = "jieba" },
     { name = "numba" },
     { name = "numpy" },
-    { name = "pyopenjtalk-prebuilt" },
+    { name = "pyopenjtalk-plus" },
     { name = "pypinyin" },
-    { name = "setuptools" },
     { name = "soundfile" },
     { name = "tensorboard" },
     { name = "torch", version = "2.8.0", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform != 'linux' and sys_platform != 'win32'" },
@@ -1208,9 +1177,8 @@ requires-dist = [
     { name = "numpy", specifier = ">=1.26,<2" },
     { name = "openpyxl", marker = "extra == 'recipes'" },
     { name = "pandas", marker = "extra == 'recipes'" },
-    { name = "pyopenjtalk-prebuilt" },
+    { name = "pyopenjtalk-plus", specifier = ">=0.4.1,<0.5" },
     { name = "pypinyin" },
-    { name = "setuptools", specifier = "<81" },
     { name = "soundfile" },
     { name = "tensorboard" },
     { name = "torch", marker = "sys_platform != 'linux' and sys_platform != 'win32'", specifier = "==2.8.*" },
@@ -1234,6 +1202,32 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/c4/68/79977123bb7be889ad680d79a40f339082c1978b5cfcf62c2d8d196873ac/starlette-0.52.1.tar.gz", hash = "sha256:834edd1b0a23167694292e94f597773bc3f89f362be6effee198165a35d62933", size = 2653702, upload-time = "2026-01-18T13:34:11.062Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/81/0d/13d1d239a25cbfb19e740db83143e95c772a1fe10202dda4b76792b114dd/starlette-0.52.1-py3-none-any.whl", hash = "sha256:0029d43eb3d273bc4f83a08720b4912ea4b071087a3b48db01b7c839f7954d74", size = 74272, upload-time = "2026-01-18T13:34:09.188Z" },
+]
+
+[[package]]
+name = "sudachidict-core"
+version = "20260428"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "sudachipy" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/f4/07/8c3f16746e6eb8766d7f2e6af11867d75e80dfca91db3ca4a5008848d0ea/sudachidict_core-20260428.tar.gz", hash = "sha256:5492112a4a0999116cb8e4327b5ad3263167e9451fc8b50e8e7b83fc00bd2d98", size = 9077, upload-time = "2026-04-30T01:51:42.688Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/49/14/74ee9e3b69f1bc18a1ab05b262062d10dc3d282cedbe7b3ebd6f56fb0936/sudachidict_core-20260428-py3-none-any.whl", hash = "sha256:9cbd237eac62cb6e3347aa3ccff9e78b18298d629c4fc4295ed46817ff9df193", size = 72237533, upload-time = "2026-04-30T01:52:23.661Z" },
+]
+
+[[package]]
+name = "sudachipy"
+version = "0.6.11"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/13/34/a52dc020e1ac67ffe2469d22771a850589a1184e0d91d48addd364ee02ba/sudachipy-0.6.11.tar.gz", hash = "sha256:4f03310fd3fc779b3000f49395c939d18a30081632d3cb14488426f7c07cc526", size = 180616, upload-time = "2026-04-13T05:27:26.857Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/35/75/723bfa0ee554ec5947fc78ebcf427916db1b6cdfee565ff7615f87e385e6/sudachipy-0.6.11-cp311-cp311-macosx_10_12_universal2.whl", hash = "sha256:347d208864c40e4879535768ca30093ccf9f578cb37613850a8eef8850e40a55", size = 2967412, upload-time = "2026-04-13T05:26:29.401Z" },
+    { url = "https://files.pythonhosted.org/packages/e5/ea/2aac0721549a490e3648d5b0ab828dffdcec48ac2c3981731b065750ca18/sudachipy-0.6.11-cp311-cp311-macosx_10_12_x86_64.whl", hash = "sha256:0312e3d87383c0a2d1357f3d7158132860a0b73d89f1d3c8887ed008359f3778", size = 1527649, upload-time = "2026-04-13T05:26:31.098Z" },
+    { url = "https://files.pythonhosted.org/packages/0d/61/f00001ebb2cb3955b1f4369a80d7c4c48d8faa8cda70b111c9781284a35f/sudachipy-0.6.11-cp311-cp311-macosx_11_0_arm64.whl", hash = "sha256:8c1870ad045d09dcdf71aaf40d49d895caf8890d4873fc4e72739e79855ac20d", size = 1462049, upload-time = "2026-04-13T05:26:32.607Z" },
+    { url = "https://files.pythonhosted.org/packages/2a/91/992b5b7538611c0017c582d935bf58784d2c52a44a403171f8858834e95e/sudachipy-0.6.11-cp311-cp311-manylinux2014_aarch64.manylinux_2_17_aarch64.whl", hash = "sha256:628525d988834d021308cab49feb94b8870f9e2d929562fd619abc9933221366", size = 1587295, upload-time = "2026-04-13T05:26:33.998Z" },
+    { url = "https://files.pythonhosted.org/packages/c5/a8/e0a1e75de7fb45375f9c916b4955273eb3decb5ff824e0a5d325cce76266/sudachipy-0.6.11-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:b9142b1f255f075a5e6768e0dee32b7ded1f2c159653698b9ce931484fbca442", size = 1630044, upload-time = "2026-04-13T05:26:35.556Z" },
+    { url = "https://files.pythonhosted.org/packages/51/57/bec9b2d140a7bcb1b598a82285477d9a2a193e2f56870fe4033977e53bee/sudachipy-0.6.11-cp311-cp311-win_amd64.whl", hash = "sha256:a702c684d5f255bd861b94a56332886a7ec6af995e7ca00ff13eff3ee0b417d1", size = 1327884, upload-time = "2026-04-13T05:26:36.969Z" },
 ]
 
 [[package]]

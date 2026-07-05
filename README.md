@@ -16,6 +16,7 @@ As the first open-source TTS model that tried to combine flow-matching and DiT, 
 ### About this fork
 
 - Japanese is the default language in `webui.py` and `preprocess.py`.
+- Japanese g2p uses [pyopenjtalk-plus](https://github.com/tsukumijima/pyopenjtalk-plus) (maintained fork of pyopenjtalk with a bundled dictionary — no runtime download). `extract_fullcontext` is called with `use_vanilla=True` to keep the phoneme output aligned with the pretrained checkpoint.
 - `generate-audio-list.py` converts a Style-Bert-VITS2 style `esd.list` (`file|speaker|lang|text`) into the `filelist.txt` used by preprocessing.
 - Dependencies are managed with [uv](https://docs.astral.sh/uv/) (`pyproject.toml` + `uv.lock`). Python is pinned to 3.11 and CUDA-enabled PyTorch (2.8 + cu128) is resolved automatically — no manual PyTorch installation needed.
 

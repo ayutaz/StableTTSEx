@@ -3,8 +3,8 @@ name = "stablettsex"
 version = "1.1.0"
 description = "StableTTSEx: fork of KdaiP/StableTTS (flow-matching + DiT TTS, zh/en/ja) with Japanese defaults"
 readme = "README.md"
-# pyopenjtalk-prebuilt の Windows wheel が cp311 までのため 3.11 に固定。
-# Python 3.12+ にする場合は pyopenjtalk（要ソースビルド: MSVC + cmake + cython）へ差し替えること。
+# 3.11 固定は環境再現性のため（pyopenjtalk-plus は cp311〜cp314 の wheel を提供済み）。
+# 引き上げは torch cu128 wheel / numba / numpy の対応確認と venv 再構築を伴うため別コミットで行うこと。
 requires-python = ">=3.11,<3.12"
 dependencies = [
     # torchaudio 2.9+ は load/save が TorchCodec 委譲になるため 2.8 系に固定
@@ -12,7 +12,8 @@ dependencies = [
     "torch==2.8.*",
     "torchaudio==2.8.*",
 
-    # pyopenjtalk-prebuilt が numpy 2 と ABI 非互換のため <2 を維持
+    # <2 は旧 pyopenjtalk-prebuilt の ABI 制約の名残。pyopenjtalk-plus は numpy 2 対応のため
+    # 緩和可能だが、numba/torch/soundfile 一式の再検証を伴うため別コミットで行う
     "numpy>=1.26,<2",
     "tqdm",
     "soundfile",   # torchaudio の音声 I/O バックエンド確保用（直接 import なし・削除不可）
@@ -26,13 +27,10 @@ dependencies = [
     "eng-to-ipa",
     "unidecode",
     "inflect",
-    # open_jtalk 辞書の自動 DL に失敗する場合:
-    # https://github.com/r9y9/open_jtalk/releases/download/v1.11.1/open_jtalk_dic_utf_8-1.11.tar.gz
-    # を展開し OPEN_JTALK_DICT_DIR 環境変数にパスを設定する
-    "pyopenjtalk-prebuilt",
-    # pyopenjtalk-prebuilt が実行時に pkg_resources を要求する。
-    # setuptools 81+ で pkg_resources は非推奨化され 83 で削除されたため <81 に固定
-    "setuptools<81",
+    # r9y9/pyopenjtalk のメンテされているフォーク（tsukumijima）。import 名は pyopenjtalk のまま、
+    # 辞書は wheel 同梱（ネットワーク DL なし）、pkg_resources 非依存（setuptools 固定も不要になった）。
+    # 0.x 系のため破壊的変更防止に上限を付ける
+    "pyopenjtalk-plus>=0.4.1,<0.5",
 ]
 
 [project.optional-dependencies]
