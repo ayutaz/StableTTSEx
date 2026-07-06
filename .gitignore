@@ -14,9 +14,10 @@ vocoders/pretrained/*
 runs/
 runs_vast_run1/
 
-# 前処理の生成物（example.txt はサンプルとして追跡）
+# 前処理の生成物（example.txt はサンプル、holdout_speakers.txt は評価再現用として追跡）
 filelists/*
 !filelists/example.txt
+!filelists/holdout_speakers.txt
 stableTTS_datasets/
 
 # webui の一時ファイル・評価用の生成音声
