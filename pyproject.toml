@@ -29,8 +29,9 @@ dependencies = [
     "inflect",
     # r9y9/pyopenjtalk のメンテされているフォーク（tsukumijima）。import 名は pyopenjtalk のまま、
     # 辞書は wheel 同梱（ネットワーク DL なし）、pkg_resources 非依存（setuptools 固定も不要になった）。
+    # onnxruntime extra は use_vanilla=False での「何」読み推定に必要（text/japanese.py 参照）。
     # 0.x 系のため破壊的変更防止に上限を付ける
-    "pyopenjtalk-plus>=0.4.1,<0.5",
+    "pyopenjtalk-plus[onnxruntime]>=0.4.1,<0.5",
 ]
 
 [project.optional-dependencies]

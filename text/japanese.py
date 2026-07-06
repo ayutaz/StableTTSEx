@@ -81,10 +81,11 @@ def japanese_to_romaji_with_accent(text):
         if re.match(_japanese_characters, sentence):
             if text != '':
                 text += ' '
-            # use_vanilla=True: pyopenjtalk-plus 独自の読み後処理（Sudachi 同形異音語補正・「何」の ONNX 推定）を
-            # 無効化し、事前学習チェックポイント学習時の素の OpenJTalk の挙動に揃える
-            # （onnxruntime の有無で読みが変わる環境依存も排除する）
-            labels = pyopenjtalk.extract_fullcontext(sentence, use_vanilla=True)
+            # use_vanilla=False: pyopenjtalk-plus の読み後処理（Sudachi 同形異音語補正・「何」の ONNX 推定）を
+            # 有効化する。自前の日本語事前学習（docs/pretraining-plan.md）では学習・推論とも本設定で統一する。
+            # 本家 checkpoint_0.pt は素の OpenJTalk の読みで学習されているため、本家モデルの厳密な再現評価が
+            # 必要な場合のみ一時的に use_vanilla=True へ戻すこと（音素セット自体は両設定で同一）
+            labels = pyopenjtalk.extract_fullcontext(sentence, use_vanilla=False)
             for n, label in enumerate(labels):
                 phoneme = re.search(r'\-([^\+]*)\+', label).group(1)
                 if phoneme not in ['sil', 'pau']:

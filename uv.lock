@@ -257,6 +257,14 @@ wheels = [
 ]
 
 [[package]]
+name = "flatbuffers"
+version = "25.12.19"
+source = { registry = "https://pypi.org/simple" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/e8/2d/d2a548598be01649e2d46231d151a6c56d10b964d94043a335ae56ea2d92/flatbuffers-25.12.19-py2.py3-none-any.whl", hash = "sha256:7634f50c427838bb021c2d66a3d1168e9d199b0607e6329399f04846d42e20b4", size = 26661, upload-time = "2025-12-19T23:16:13.622Z" },
+]
+
+[[package]]
 name = "fonttools"
 version = "4.63.0"
 source = { registry = "https://pypi.org/simple" }
@@ -829,6 +837,26 @@ wheels = [
 ]
 
 [[package]]
+name = "onnxruntime"
+version = "1.27.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "flatbuffers" },
+    { name = "numpy" },
+    { name = "packaging" },
+    { name = "protobuf" },
+]
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/fb/2b/54208fd03ad410480bc17edf4869376362da8bbf46fe186ddf4cb5cc20fe/onnxruntime-1.27.0-cp313-cp313-macosx_14_0_arm64.whl", hash = "sha256:b3e5b58b8c89c2b20e086e890aa9527377e5c240dc3ecc1640d18e07705eeb1c", size = 18432958, upload-time = "2026-06-15T22:42:53.105Z" },
+    { url = "https://files.pythonhosted.org/packages/ce/88/24fc51fcbb126da6d032372314e47b55c3faad58f2aa78c0e199ccd20b9c/onnxruntime-1.27.0-cp313-cp313-manylinux_2_27_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:48b3d87eb560ff6a772240506f3c78d6d27c63cafedd5c775672e1194f968cfd", size = 16438180, upload-time = "2026-06-15T22:42:43.093Z" },
+    { url = "https://files.pythonhosted.org/packages/cb/19/14929c3c2fe0b79b41cce24463062bf3afa4cdd3c19dccf00319caa92bff/onnxruntime-1.27.0-cp313-cp313-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:6872443f236a554921cda6f318c900e2d0c226792cf3534d00e5057c6926e5d2", size = 18658445, upload-time = "2026-06-15T22:43:08.053Z" },
+    { url = "https://files.pythonhosted.org/packages/7f/76/59ed932b0244acd7bbbd6449480053a6d958ea66357f022f932872e19287/onnxruntime-1.27.0-cp313-cp313-win_amd64.whl", hash = "sha256:760021bca514d64a811837820d351a08a41741f16f8b4c26450da708fecf14e6", size = 13357856, upload-time = "2026-06-15T22:43:37.315Z" },
+    { url = "https://files.pythonhosted.org/packages/79/51/d1ec60ec7b1e2ae2d7340ba52b8a13529140039cd4407ba8dddbbc046582/onnxruntime-1.27.0-cp313-cp313-win_arm64.whl", hash = "sha256:2fdfa9df40a0ded0028ce6f9cd863264237f3970559dea2b81456e9ac4622b94", size = 13104412, upload-time = "2026-06-15T22:43:27.457Z" },
+    { url = "https://files.pythonhosted.org/packages/5e/7d/e6bb1c6445c94f708c38cd8fbb7bf0264108c33498b9445c93e60fe6d329/onnxruntime-1.27.0-cp313-cp313t-manylinux_2_27_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:54c0c4e9202c36c4ecdb1f3443f5dfbfd5ee3b54d1362c4b4c6134110e74fb32", size = 16443331, upload-time = "2026-06-15T22:42:45.649Z" },
+    { url = "https://files.pythonhosted.org/packages/72/1b/b18b31e806eabc41077810199fbbb36fbc2d5f19912416e5ccfbf73053d1/onnxruntime-1.27.0-cp313-cp313t-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:1b215aa662c8f983f7d6dedafe65a9be72c26e5338e0fe98b3e0422c32c85428", size = 18670967, upload-time = "2026-06-15T22:43:10.621Z" },
+]
+
+[[package]]
 name = "openpyxl"
 version = "3.1.5"
 source = { registry = "https://pypi.org/simple" }
@@ -1034,6 +1062,11 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/e2/97/83491b337395c536be5646f2609db9fd1ddd6bdc1d8bff44090e4ee93c8f/pyopenjtalk_plus-0.4.1.post8-cp313-cp313-manylinux_2_24_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:0f325b552cbcfce7766b0eb566d3b577249c1b0f47808c5f548cf91f034583ab", size = 30875872, upload-time = "2026-03-30T22:15:35.46Z" },
     { url = "https://files.pythonhosted.org/packages/bd/98/894b7624663b3d7c85264bd6ff7d334513de418af8b16b2b5a9dc9c5ef67/pyopenjtalk_plus-0.4.1.post8-cp313-cp313-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:09d31ec3ee2563d89648d6037793948ba5d3f634ee0d331fc539d61e901242b5", size = 30959112, upload-time = "2026-03-30T22:15:38.324Z" },
     { url = "https://files.pythonhosted.org/packages/bd/c2/5e787b8678f3ef3e004363071eeeaa02ee68ed06ed8659d8100fb987b304/pyopenjtalk_plus-0.4.1.post8-cp313-cp313-win_amd64.whl", hash = "sha256:1e5dee0b0bb0b04303a8995278e87315bee1c37cf48b2bf2052704d54b87194b", size = 24751015, upload-time = "2026-03-30T22:15:41.271Z" },
+]
+
+[package.optional-dependencies]
+onnxruntime = [
+    { name = "onnxruntime" },
 ]
 
 [[package]]
@@ -1250,7 +1283,7 @@ dependencies = [
     { name = "jieba" },
     { name = "numba" },
     { name = "numpy" },
-    { name = "pyopenjtalk-plus" },
+    { name = "pyopenjtalk-plus", extra = ["onnxruntime"] },
     { name = "pypinyin" },
     { name = "soundfile" },
     { name = "tensorboard" },
@@ -1284,7 +1317,7 @@ requires-dist = [
     { name = "numpy", specifier = ">=2.1,<2.5" },
     { name = "openpyxl", marker = "extra == 'recipes'" },
     { name = "pandas", marker = "extra == 'recipes'" },
-    { name = "pyopenjtalk-plus", specifier = ">=0.4.1,<0.5" },
+    { name = "pyopenjtalk-plus", extras = ["onnxruntime"], specifier = ">=0.4.1,<0.5" },
     { name = "pypinyin" },
     { name = "soundfile" },
     { name = "tensorboard" },

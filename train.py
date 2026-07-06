@@ -1,5 +1,6 @@
 import os
-os.environ['CUDA_VISIBLE_DEVICES'] = '0,1'
+# 既に設定されていれば尊重する（未設定時のみ既定で GPU 0,1 を使う。使用GPU数は device_count() で決まる）
+os.environ.setdefault('CUDA_VISIBLE_DEVICES', '0,1')
 
 import torch
 import torch.optim as optim
