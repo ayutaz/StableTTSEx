@@ -12,6 +12,7 @@ checkpoints/*
 vocoders/pretrained/*
 !vocoders/pretrained/.keep
 runs/
+runs_vast_run1/
 
 # 前処理の生成物（example.txt はサンプルとして追跡）
 filelists/*

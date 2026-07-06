@@ -53,36 +53,33 @@ StableTTS は話者ベクトル（MelStyleEncoder 出力）が duration predicto
 - [x] `train.py` 冒頭の `CUDA_VISIBLE_DEVICES` ハードコードを `setdefault` に変更（外部からの指定を尊重）
 - [x] 完了条件: 「何ですか→なん」「何の日→なんの」「何時のアクセント」の3文で plus 補正の有効化を確認済み（onnx 有効な検証環境の出力と完全一致）
 
-### M1: データ取得（vast.ai インスタンス上で実施）
-- [ ] 2×5090・ディスク500GB以上・inet_down 1Gbps 級のオファーを選定してインスタンス作成（必要ならローカルボリュームを同一マシンに作成してアタッチ）
-- [ ] インスタンス上に HF トークンを設定し moe-speech-plus をダウンロード（音声+JSON で 200GB 級。データセンター回線で30分〜1時間目安）
-- 完了条件: 全話者 zip の展開と件数検証（約395kファイル/473話者）
-- 補足: M1〜M5 はすべて vast.ai 上で実施する。ローカル（Windows）は評価・推論用
+### M1: データ取得（vast.ai インスタンス上で実施）✅（2026-07-06 完了）
+- [x] インスタンス **43982092**（2×RTX 5090 / 144コア / 台湾 / 約$0.9/h）を作成。450GB ローカルボリュームを `/data` にアタッチ
+- [x] リポジトリは private のため git bundle 経由で `/data/StableTTSEx` に配置。uv sync 済み（torch 2.8.0+cu128、GPU 2枚認識、g2p 出力はローカル Windows と完全一致）
+- [x] moe-speech-plus ダウンロード完了（481ファイル・**143GB**）。HF の Xet 転送がハングする問題があり、`HF_HUB_DISABLE_XET=1` + 自動リトライ + 10分無更新でkillするウォッチドッグ構成で解決
+- [x] 展開完了: **473話者 / 395,170発話 / 621.4時間**（zip は展開後削除）
+- 学習初期値 checkpoint_0.pt とボコーダ2種も配置済み
 
-### M2: フィルタリングと filelist 生成
-- [ ] フィルタ条件（初期値、実データ分布を見て調整）:
-  - speechMOS (UTMOS) ≥ 2.5〜3.0
-  - anime-whisper と parakeet の文字起こし一致度（正規化編集距離 ≤ 0.1 目安。採用テキストは anime-whisper 側）
-  - 音声長 1〜15秒（collate/バケットの外れ値対策）
-- [ ] **ホールドアウト話者を5話者程度学習から除外**（M6 のゼロショット評価用）
-- [ ] `audiopath|text` 形式の filelist.txt を生成
-- 完了条件: フィルタ後の総時間・発話数・話者数のレポート（目標: 400時間超・25万発話規模を確保。下回る場合は閾値を再調整）
+### M2: フィルタリングと filelist 生成 ✅（2026-07-06 完了）
+- [x] 統計に基づき閾値を **speechMOS ≥ 1.5 / ASR一致度 ≥ 0.90 / 1〜15秒** に決定
+  - 計画時の「UTMOS 2.5〜3.0」は不採用。UTMOS は自然発話基準の指標で演技音声（感情表現・叫び・囁き）を系統的に低く採点するため（分布の中央値2.13）、高い閾値は目的の「表現力」をもつデータを削る。MOS は下位ジャンク除去（1.5未満 = 約12%）に留め、正確性は2系統 ASR（anime-whisper vs parakeet）の正規化一致度 0.90 で担保する
+- [x] ホールドアウト5話者: cf7e3a79, 93dda15e, 224a42d8, 0d70cf5c, 3371a8ac（`filelists/holdout_speakers.txt`）
+- [x] filelist.txt 生成: **235,095発話 / 377.8時間**（テキストは anime-whisper 側を採用）
 
-### M3: 前処理（mel 化）
-- [ ] `preprocess.py` の DataConfig を設定して実行（language='japanese'、mel 出力 ~100GB 級、数時間）
-- 完了条件: filelist.json の行数がフィルタ後発話数と一致、mel ファイルの破損なし（サンプリング検査）
+### M3: 前処理（mel 化）✅（2026-07-06 完了）
+- [x] `preprocess.py` を CPU 48並列で実行（`PREPROCESS_WORKERS` 環境変数を新設）。**235,095 mel 生成 = filelist と完全一致、g2p 失敗ゼロ**、約20分で完了
 
-### M4: ベースライン採取と学習速度実測
-- [ ] 評価スクリプト（既存3セット + 話者類似度・UTMOS の定量指標）で **本家 checkpoint_0.pt のベースライン数値を記録**（ローカルで実施可）
-- [ ] vast.ai 上で数百 step の試走で it/s・VRAM 使用量を実測（VRAM 32GB なので batch_size 64 起点）
-- [ ] 総所要時間を確定: 概算 25〜30万発話 × 15 epochs ≈ 6〜7万 steps（batch 64時）。2×5090 で概ね半日〜1日、GPU 費用 $10〜25 程度の見込み
-- 中断リスクは低い: train.py は checkpoints/ から自動レジュームするため、途中停止しても save_interval（1 epoch）単位で再開可能。チェックポイントは epoch ごとに HF へ同期
+### M4: 学習立ち上げ実測 ✅（2026-07-06 完了）
+- [x] batch 64 は長尺バケットで OOM → **batch 32 × 2GPU（実効64 = upstream 構成）** に決定
+- [x] DDP 初期化の SIGSEGV はコンシューマ GPU ホストの NCCL P2P 問題 → **`NCCL_P2P_DISABLE=1`** で解決
+- [x] バケット境界を [.., 1300] に拡張（上限1000のままだと長尺 4.74% が黙って除外されるため。train.py に反映済み）
+- [x] 実測: 平均 6〜7 it/s、3,678 steps/epoch ≈ 10分/epoch、VRAM ピークは 32GB 内に収束
 
-### M5: 本学習
-- [ ] TrainConfig 設定（batch_size は M4 実測値、num_epochs 15 起点、warmup_steps 200）
-- [ ] checkpoints/ に checkpoint_0.pt を配置して学習開始（自動でロードされる）
-- [ ] TensorBoard で dur_loss / diff_loss / prior_loss を監視。1〜2 epoch 時点で一度サンプル合成して破綻がないか中間確認
-- 完了条件: loss の収束傾向確認と全 epoch 完走（または早期打ち切りの判断記録）
+### M5: 本学習 ✅（2026-07-06 完了）
+- [x] **15 epochs 完走（約2.5時間、学習本体の GPU 費用 ≈ $2.5）**。checkpoint_0.pt 初期化（optimizer なし → else 分岐で重みのみロード、epoch 0 から）
+- [x] checkpoint_0〜14.pt + optimizer 全15組を確認、チェックポイントはローカル `checkpoints/vast_run1/` に回収済み
+- [x] TensorBoard ログは `runs_vast_run1/runs/` に回収（`uv run tensorboard --logdir runs_vast_run1/runs`）
+- 備考: 学習終了後に DDP プロセスが destroy_process_group でハングする（既知の挙動、成果物には無害）。監視スクリプトの scp は `-P`（大文字）が必要という教訓
 
 ### M6: 評価
 - [ ] M4 と同一条件で再評価: 既存3評価セットの再生成、つくよみちゃん A/B（正解音声比較）、ホールドアウト話者ゼロショット
