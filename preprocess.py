@@ -23,6 +23,8 @@ class DataConfig:
     output_feature_path = './stableTTS_datasets' # path to save resampled audios and mel features
     language = 'japanese' # chinese, japanese or english
     resample = False # waveform is not used in training, so save resampled results is not necessary.
+    # 並列プロセス数。CPU 実行時（CUDA_VISIBLE_DEVICES= を指定）はコア数に応じて増やせる
+    num_workers = int(os.environ.get('PREPROCESS_WORKERS', '2'))
 
 g2p_mapping = {
     'chinese': chinese_to_cnm3,
@@ -87,7 +89,7 @@ def main():
     input_filelist = load_filelist(input_filelist_path)
     results = []
     
-    with Pool(processes=2) as pool:
+    with Pool(processes=data_config.num_workers) as pool:
         for result in tqdm(pool.imap(process_filelist, input_filelist), total=len(input_filelist)):
             if result is not None:
                 results.append(f'{result}\n') 

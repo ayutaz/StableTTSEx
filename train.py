@@ -61,7 +61,8 @@ def train(rank, world_size):
     model = DDP(model, device_ids=[rank])
 
     train_dataset = StableDataset(train_config.train_dataset_path, mel_config.hop_length)
-    train_sampler = DistributedBucketSampler(train_dataset, train_config.batch_size, [32,300,400,500,600,700,800,900,1000], num_replicas=world_size, rank=rank)
+    # 上限はデータセットの最長 mel 長を包含させる（境界外のサンプルは黙って捨てられるため。moe-speech は最長 ~1291）
+    train_sampler = DistributedBucketSampler(train_dataset, train_config.batch_size, [32,300,400,500,600,700,800,900,1000,1100,1200,1300], num_replicas=world_size, rank=rank)
     train_dataloader = DataLoader(train_dataset, batch_sampler=train_sampler, num_workers=4, pin_memory=True, collate_fn=collate_fn, persistent_workers=True)
     
     if rank == 0:
