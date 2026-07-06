@@ -22,7 +22,7 @@ class CFMDecoder(torch.nn.Module):
         self.estimator = Decoder(noise_channels, cond_channels, hidden_channels, out_channels, filter_channels, p_dropout, n_layers, n_heads, kernel_size, gin_channels)
 
     @torch.inference_mode()
-    def forward(self, mu, mask, n_timesteps, temperature=1.0, c=None, solver=None, cfg_kwargs=None):
+    def forward(self, mu, mask, n_timesteps, temperature=1.0, c=None, solver=None, cfg_kwargs=None, sway_coef=None):
         """Forward diffusion
 
         Args:
@@ -36,15 +36,23 @@ class CFMDecoder(torch.nn.Module):
                 shape: (batch_size, gin_channels)
             solver: see https://github.com/rtqichen/torchdiffeq for supported solvers
             cfg_kwargs: used for cfg inference
+            sway_coef (float, optional): sway sampling coefficient. Only effective with fixed-step
+                solvers (euler/midpoint/rk4 etc.); adaptive solvers like dopri5 treat t_span as
+                output evaluation points only, so it has no effect there.
 
         Returns:
             sample: generated mel-spectrogram
                 shape: (batch_size, n_feats, mel_timesteps)
         """
-        
+
         z = torch.randn_like(mu) * temperature
         t_span = torch.linspace(0, 1, n_timesteps + 1, device=mu.device)
-        
+        if sway_coef is not None and sway_coef != 0.0:
+            # Sway Sampling (F5-TTS, arXiv:2410.06885). fixed-step solvers only; s=-1 matches the training-time cosine schedule
+            # monotonicity (dt'/dt = (1+s) - s*(pi/2)*sin(pi*t/2) >= 0) requires -1 <= s <= 2/(pi-2) (~1.752); clamp slightly inside for float32 grid safety
+            s = min(max(float(sway_coef), -1.0), 1.75)
+            t_span = t_span + s * (torch.cos(torch.pi / 2 * t_span) - 1 + t_span)
+
         # cfg control
         if cfg_kwargs is None:
             estimator = functools.partial(self.estimator, mask=mask, mu=mu, c=c)
@@ -56,14 +64,31 @@ class CFMDecoder(torch.nn.Module):
     
     # cfg inference
     def cfg_wrapper(self, t, x, mask, mu, c, cfg_kwargs):
-        fake_speaker = cfg_kwargs['fake_speaker'].repeat(x.size(0), 1)
-        fake_content = cfg_kwargs['fake_content'].repeat(x.size(0), 1, x.size(-1))
         cfg_strength = cfg_kwargs['cfg_strength']
-        
+        cfg_interval = cfg_kwargs.get('cfg_interval')      # None or (t_min, t_max)
+        cfg_rescale = cfg_kwargs.get('cfg_rescale', 0.0)   # 0.0 = off (Lin+ 2023 arXiv:2305.08891 §3.4)
+        slg_scale = cfg_kwargs.get('slg_scale', 0.0)       # 0.0 = off (SD3.5 Skip Layer Guidance)
+        slg_layers = cfg_kwargs.get('slg_layers', (2,))
+        slg_t_range = cfg_kwargs.get('slg_t_range', (0.0, 0.5))
+
         cond_output = self.estimator(t, x, mask, mu, c)
-        uncond_output = self.estimator(t, x, mask, fake_content, fake_speaker)
-        
-        output = uncond_output + cfg_strength * (cond_output - uncond_output)
+        t_now = float(t)
+
+        output = cond_output
+        # cfg_strength == 1.0 reduces to cond_output, so skip the uncond forward (also enables SLG-only inference at cfg=1.0)
+        if cfg_strength != 1.0 and (cfg_interval is None or cfg_interval[0] <= t_now <= cfg_interval[1]):
+            fake_speaker = cfg_kwargs['fake_speaker'].repeat(x.size(0), 1)
+            fake_content = cfg_kwargs['fake_content'].repeat(x.size(0), 1, x.size(-1))
+            uncond_output = self.estimator(t, x, mask, fake_content, fake_speaker)
+            output = uncond_output + cfg_strength * (cond_output - uncond_output)
+            if cfg_rescale > 0.0:
+                std_cond = cond_output.std(dim=(1, 2), keepdim=True)
+                std_cfg = output.std(dim=(1, 2), keepdim=True)
+                rescaled = output * (std_cond / (std_cfg + 1e-8))
+                output = cfg_rescale * rescaled + (1.0 - cfg_rescale) * output
+        if slg_scale > 0.0 and slg_t_range[0] <= t_now < slg_t_range[1]:
+            skip_output = self.estimator(t, x, mask, mu, c, skip_layers=slg_layers)
+            output = output + slg_scale * (cond_output - skip_output)
         return output
 
     def compute_loss(self, x1, mask, mu, c):

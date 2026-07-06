@@ -29,7 +29,11 @@ def get_vocoder(model_path, model_name='ffgan') -> nn.Module:
         vocoder = Vocos(VocosConfig(), MelConfig())
         vocoder.load_state_dict(torch.load(model_path, weights_only=True, map_location='cpu'))
         vocoder.eval()
-        
+
+    elif model_name == 'bigvgan':
+        # BigVGAN v2 (MIT) support is planned (施策15) but not vendored yet; see docs/architecture-improvement-research.md
+        raise NotImplementedError("bigvgan vocoder is not vendored yet; use 'ffgan' or 'vocos'")
+
     else:
         raise NotImplementedError(f"Unsupported model: {model_name}")
         
@@ -61,18 +65,70 @@ class StableTTSAPI(nn.Module):
         self.supported_languages = self.g2p_mapping.keys()
         
     @ torch.inference_mode()
-    def inference(self, text, ref_audio, language, step, temperature=1.0, length_scale=1.0, solver=None, cfg=3.0):
+    def get_style_vector(self, ref_audio, ref_window_seconds=None, ref_window_hop_seconds=None):
+        """Compute a style vector (1, gin_channels) from one or more reference audio files.
+
+        ref_window_seconds: if set, each file is sliced into fixed-length windows which are
+        encoded separately and averaged. Otherwise each file is encoded as a single window.
+        """
+        device = next(self.parameters()).device
+        if isinstance(ref_audio, str):
+            ref_audio = [ref_audio]
+
+        mels = []
+        for audio_path in ref_audio:
+            audio = load_and_resample_audio(audio_path, self.mel_config.sample_rate)
+            if audio is None:
+                continue
+            mels.append(self.mel_extractor(audio.to(device))) # (1, n_mels, T)
+        if not mels:
+            raise ValueError('no valid reference audio files')
+
+        if ref_window_seconds is not None:
+            win = int(ref_window_seconds * self.mel_config.sample_rate / self.mel_config.hop_length)
+            hop = int(ref_window_hop_seconds * self.mel_config.sample_rate / self.mel_config.hop_length) if ref_window_hop_seconds is not None else win // 2
+
+        styles_per_file = [[] for _ in mels]
+        windows, window_file_ids = [], [] # equal-length windows, batched into one forward
+        for i, mel in enumerate(mels):
+            mel_length = mel.size(-1)
+            if ref_window_seconds is None or mel_length < win:
+                # whole file as a single window (variable length, forwarded individually)
+                styles_per_file[i].append(self.tts_model.ref_encoder(mel, None))
+            else:
+                starts = list(range(0, mel_length - win + 1, hop))
+                if mel_length - (starts[-1] + win) >= win // 2:
+                    starts.append(mel_length - win) # end-aligned window for the residual
+                for start in starts:
+                    windows.append(mel[:, :, start:start + win])
+                    window_file_ids.append(i)
+        if windows:
+            window_styles = self.tts_model.ref_encoder(torch.cat(windows, dim=0), None)
+            for i, style in zip(window_file_ids, window_styles.split(1, dim=0)):
+                styles_per_file[i].append(style)
+
+        # two-stage average: within each file, then across files (files weighted equally, not by window count)
+        file_styles = [torch.cat(styles, dim=0).mean(dim=0, keepdim=True) for styles in styles_per_file]
+        return torch.cat(file_styles, dim=0).mean(dim=0, keepdim=True)
+
+    @ torch.inference_mode()
+    def inference(self, text, ref_audio, language, step, temperature=1.0, length_scale=1.0, solver=None, cfg=3.0, sway_coef=None, cfg_rescale=0.0, cfg_interval=None, ref_window_seconds=None, slg_scale=0.0, slg_layers=(2,), slg_t_range=(0.0, 0.5)):
         device = next(self.parameters()).device
         phonemizer = self.g2p_mapping.get(language)
-        
+
         text = phonemizer(text)
         text = torch.tensor(intersperse(cleaned_text_to_sequence(text), item=0), dtype=torch.long, device=device).unsqueeze(0)
         text_length = torch.tensor([text.size(-1)], dtype=torch.long, device=device)
-        
-        ref_audio = load_and_resample_audio(ref_audio, self.mel_config.sample_rate).to(device)
-        ref_audio = self.mel_extractor(ref_audio)
-        
-        mel_output = self.tts_model.synthesise(text, text_length, step, temperature, ref_audio, length_scale, solver, cfg)['decoder_outputs']
+
+        if isinstance(ref_audio, (list, tuple)) or ref_window_seconds is not None:
+            c = self.get_style_vector(ref_audio, ref_window_seconds)
+            ref_audio = None
+        else:
+            c = None
+            ref_audio = load_and_resample_audio(ref_audio, self.mel_config.sample_rate).to(device)
+            ref_audio = self.mel_extractor(ref_audio)
+
+        mel_output = self.tts_model.synthesise(text, text_length, step, temperature, ref_audio, length_scale, solver, cfg, sway_coef=sway_coef, cfg_rescale=cfg_rescale, cfg_interval=cfg_interval, c=c, slg_scale=slg_scale, slg_layers=slg_layers, slg_t_range=slg_t_range)['decoder_outputs']
         audio_output = self.vocoder_model(mel_output)
         return audio_output.cpu(), mel_output.cpu()
     

@@ -100,7 +100,7 @@ class Decoder(nn.Module):
             nn.init.constant_(block.block.adaLN_modulation[-1].weight, 0)
             nn.init.constant_(block.block.adaLN_modulation[-1].bias, 0)
 
-    def forward(self, t, x, mask, mu, c):
+    def forward(self, t, x, mask, mu, c, skip_layers=None):
         """Forward pass of the DiT model.
 
         Args:
@@ -109,6 +109,8 @@ class Decoder(nn.Module):
             mask (torch.Tensor): shape (batch_size, 1, time)
             mu (torch.Tensor): output of encoder, shape (batch_size, in_channels, time)
             c (torch.Tensor): shape (batch_size, gin_channels)
+            skip_layers (optional): indices of DiT blocks to skip (Skip Layer Guidance).
+                Long skip connection bookkeeping still runs for skipped blocks.
 
         Returns:
             _type_: _description_
@@ -130,7 +132,9 @@ class Decoder(nn.Module):
                 else:
                     x = torch.cat((x, lsc_outputs.pop()), dim=1)
                     x = self.lsc_layers[idx - self.n_lsc_layers](x)
-                    
+
+            if skip_layers is not None and idx in skip_layers:
+                continue
             x = block(x, c, t, mask)
 
         output = self.final_proj(x * mask)

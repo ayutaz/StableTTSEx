@@ -46,7 +46,7 @@ class StableTTS(nn.Module):
         self.cfg_dropout = 0.2
 
     @torch.inference_mode()
-    def synthesise(self, x, x_lengths, n_timesteps, temperature=1.0, y=None, length_scale=1.0, solver=None, cfg=1.0):
+    def synthesise(self, x, x_lengths, n_timesteps, temperature=1.0, y=None, length_scale=1.0, solver=None, cfg=1.0, sway_coef=None, cfg_rescale=0.0, cfg_interval=None, c=None, slg_scale=0.0, slg_layers=(2,), slg_t_range=(0.0, 0.5)):
         """
         Generates mel-spectrogram from text. Returns:
             1. encoder outputs
@@ -64,6 +64,14 @@ class StableTTS(nn.Module):
                 shape: (batch_size, mel_channels, time)
             length_scale (float, optional): controls speech pace.
                 Increase value to slow down generated speech and vice versa.
+            sway_coef (float, optional): sway sampling coefficient (fixed-step solvers only).
+            cfg_rescale (float, optional): CFG rescale factor, 0.0 = off.
+            cfg_interval (tuple, optional): (t_min, t_max) interval to apply CFG, None = always.
+            c (torch.Tensor, optional): precomputed style vector (batch_size, gin_channels).
+                If given, y is ignored for style extraction.
+            slg_scale (float, optional): Skip Layer Guidance scale, 0.0 = off.
+            slg_layers (tuple, optional): DiT block indices to skip for SLG.
+            slg_t_range (tuple, optional): [t_min, t_max) interval to apply SLG.
 
         Returns:
             dict: {
@@ -76,7 +84,8 @@ class StableTTS(nn.Module):
         """
 
         # Get encoder_outputs `mu_x` and log-scaled token durations `logw`
-        c = self.ref_encoder(y, None)
+        if c is None:
+            c = self.ref_encoder(y, None)
         x, mu_x, x_mask = self.encoder(x, c, x_lengths)
         logw = self.dp(x, x_mask, c)
 
@@ -96,11 +105,12 @@ class StableTTS(nn.Module):
         encoder_outputs = mu_y[:, :, :y_max_length]
 
         # Generate sample tracing the probability flow
-        if cfg == 1.0:
-            decoder_outputs = self.decoder(mu_y, y_mask, n_timesteps, temperature, c, solver)
+        # SLG is independent of CFG, so route through cfg_wrapper whenever either is active
+        if cfg == 1.0 and slg_scale == 0.0:
+            decoder_outputs = self.decoder(mu_y, y_mask, n_timesteps, temperature, c, solver, sway_coef=sway_coef)
         else:
-            cfg_kwargs = {'fake_speaker': self.fake_speaker, 'fake_content': self.fake_content, 'cfg_strength': cfg}
-            decoder_outputs = self.decoder(mu_y, y_mask, n_timesteps, temperature, c, solver, cfg_kwargs)
+            cfg_kwargs = {'fake_speaker': self.fake_speaker, 'fake_content': self.fake_content, 'cfg_strength': cfg, 'cfg_rescale': cfg_rescale, 'cfg_interval': cfg_interval, 'slg_scale': slg_scale, 'slg_layers': slg_layers, 'slg_t_range': slg_t_range}
+            decoder_outputs = self.decoder(mu_y, y_mask, n_timesteps, temperature, c, solver, cfg_kwargs, sway_coef=sway_coef)
             
         decoder_outputs = decoder_outputs[:, :, :y_max_length]
 
