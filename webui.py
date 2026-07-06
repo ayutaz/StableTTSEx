@@ -13,7 +13,7 @@ from api import StableTTSAPI
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
-tts_model_path = './checkpoints/checkpoint_0.pt'
+tts_model_path = './checkpoints/tsukuyomi_ft200.pt'
 vocoder_model_path = './vocoders/pretrained/firefly-gan-base-generator.ckpt'
 vocoder_type = 'ffgan'
 
@@ -112,7 +112,7 @@ def main():
                     label='Step',
                     minimum=1,
                     maximum=100,
-                    value=25,
+                    value=16,
                     step=1
                 )
                 
@@ -133,14 +133,14 @@ def main():
                 solver_gr = gr.Dropdown(
                     label='ODE Solver',
                     choices=['euler', 'midpoint', 'dopri5', 'rk4', 'implicit_adams', 'bosh3', 'fehlberg2', 'adaptive_heun'],
-                    value = 'dopri5'
+                    value = 'euler'
                 )
 
                 sway_coef_gr = gr.Slider(
                     label='Sway Coef',
                     minimum=-1.0,
                     maximum=0.0,
-                    value=0.0,
+                    value=-1.0,
                     step=0.05,
                     info='euler等の固定ステップソルバーでのみ有効'
                 )
@@ -156,7 +156,7 @@ def main():
                     label='CFG Rescale',
                     minimum=0.0,
                     maximum=1.0,
-                    value=0.0,
+                    value=0.7,
                     step=0.05,
                     info='0=off。過剰CFGの飽和抑制'
                 )
