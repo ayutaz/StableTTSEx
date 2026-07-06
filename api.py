@@ -31,8 +31,8 @@ def get_vocoder(model_path, model_name='ffgan') -> nn.Module:
         vocoder.eval()
 
     elif model_name == 'bigvgan':
-        # BigVGAN v2 (MIT) support is planned (施策15) but not vendored yet; see docs/architecture-improvement-research.md
-        raise NotImplementedError("bigvgan vocoder is not vendored yet; use 'ffgan' or 'vocos'")
+        from vocoders.bigvgan.model import BigVGANWrapper
+        vocoder = BigVGANWrapper(model_path)
 
     else:
         raise NotImplementedError(f"Unsupported model: {model_name}")

@@ -22,6 +22,7 @@ stableTTS_datasets/
 
 # webui の一時ファイル・評価用の生成音声
 temps/
+.gradio/
 
 # データセット原本の置き場（esd.list 等はリポジトリ外管理）
 esd.list
