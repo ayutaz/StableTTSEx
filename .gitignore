@@ -24,6 +24,9 @@ temps/
 # データセット原本の置き場（esd.list 等はリポジトリ外管理）
 esd.list
 
+# 秘密情報（vast.ai APIキー等）
+.env
+
 # OS
 Thumbs.db
 .DS_Store
