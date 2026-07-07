@@ -48,6 +48,7 @@ recipes = [
 # 開発ツール（PEP 735。uv sync でデフォルト同期される）。ruff は lint と format を兼ねる
 dev = [
     "ruff>=0.15,<0.16",
+    "pytest>=8,<9", # tests/ 一式（GPU/実チェックポイント/ネットワーク不要の CPU テスト）
 ]
 
 [tool.uv]
@@ -95,3 +96,14 @@ ignore = [
 # upstream 由来の g2p フロントエンド。import 前にモジュールレベルの文字列/初期化があり順序に意図がある
 "text/english.py" = ["E402"]
 "text/mandarin.py" = ["E402"]
+# conftest は torch import 前に CUDA_VISIBLE_DEVICES を設定する必要があり、import が先頭に来ない
+"tests/conftest.py" = ["E402"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."] # リポジトリ root を sys.path に載せ config/models/text/utils/datas を絶対 import 可能にする
+addopts = "-q"
+filterwarnings = [
+    # jieba が import 時に出す無害な警告（本文の注意点参照）。テスト失敗と混同しないよう抑制
+    "ignore:pkg_resources is deprecated as an API:UserWarning",
+]

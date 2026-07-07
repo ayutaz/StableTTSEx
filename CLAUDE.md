@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 StableTTSEx は [KdaiP/StableTTS](https://github.com/KdaiP/StableTTS) のフォーク（upstream v1.1 ベース）。flow-matching と DiT を組み合わせた軽量 TTS モデル（約31Mパラメータ）で、単一チェックポイントで中国語・英語・日本語に対応する。話者IDは使わず、reference encoder が参照音声から話者性を抽出するゼロショット方式。フォーク固有の変更は、日本語をデフォルトにする設定・`generate-audio-list.py`・uv による依存管理・日本語 g2p の pyopenjtalk-plus 化など小規模。
 
-テストの設定は存在しない。設定は CLI 引数ではなく、`config.py` や各スクリプト冒頭の dataclass を直接編集する方式。
+テストは `tests/`（pytest、`[dependency-groups]` の `dev`）にある。**GPU・実チェックポイント・ネットワーク不要の CPU 決定論テスト**で、`uv run pytest` で実行する。方針: モデル出力は torch 版で微小に揺れるため値ゴールデンではなく shape・有限性・同一 seed 内一致・関係性（feature ON/OFF で出力が変わる差分）・no-op 等価を検証する。ただし `len(symbols)==401`・g2p の音素列ゴールデン・full-config のパラメータ数（31,644,545）は「壊れると静かに既存チェックポイント非互換になる」不変条件として意図的に厳密固定している。`conftest.py` は torch import 前に `CUDA_VISIBLE_DEVICES=''` で CPU 固定し、tiny config（hidden 偶数・hidden%heads==0・n_dec_layers 偶数）の StableTTS/CFMDecoder factory を提供する。`train.py`/`preprocess.py` はモジュールレベル副作用があるため import せず、部品（config/models/utils/datas/text と api の g2p_mapping）をテストする。設定は CLI 引数ではなく、`config.py` や各スクリプト冒頭の dataclass を直接編集する方式。
 
 リンタ／フォーマッタは ruff（`pyproject.toml` の `[tool.ruff]`）。`line-length=120`、ルールは `E/F/W/I/UP/B`（`E501` は formatter に委譲するため lint では無効、`UP031` は upstream g2p の `'%s' % x` 慣用のため許容）。**vendor 3rd-party（`text/cn2an`・`text/custom_pypinyin_dict`・`vocoders/{bigvgan,ffgan,vocos}`・`monotonic_align`）は `extend-exclude` で対象外**にしており、自分たちが著作しないコードは整形・lint しない。ruff は `[dependency-groups]` の `dev` グループにあり `uv sync` でデフォルト導入される。
 
@@ -37,6 +37,10 @@ uv run tensorboard --logdir runs
 # コード品質（ruff。vendor コードは pyproject の extend-exclude で対象外）
 uv run ruff check              # lint（--fix で安全な自動修正を適用）
 uv run ruff format             # フォーマット（--check で差分の有無だけ確認）
+
+# テスト（pytest。CPU のみ・GPU/実チェックポイント/ネットワーク不要。約10秒）
+uv run pytest                       # 全テスト
+uv run pytest tests/test_ema.py -v  # 個別ファイル / -k で個別テスト
 
 # 推論
 uv run python webui.py # Gradio WebUI（share=True で起動、デフォルト言語は日本語）
