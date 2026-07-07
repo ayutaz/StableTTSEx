@@ -29,8 +29,8 @@ from models.tla_sa import load_sv_teacher
 class Config:
     filelist_path: str = "filelists/filelist.json"
     # config.tla_sa_teacher と一致させる（campplus=192次元 / wavlm_sv=512次元）。
-    # 初期スモークは vendor 不要な wavlm_sv が低摩擦、本番は Apache-2.0 の campplus 推奨
-    teacher: str = "campplus"
+    # Phase 3 スモークは vendor 不要な wavlm_sv。本番は Apache-2.0 の campplus に切り替える
+    teacher: str = "wavlm_sv"
     emb_dir: str = "spk_emb"  # sidecar .pt の保存先（model_save_path の外）
     device: str = "cuda" if torch.cuda.is_available() else "cpu"
 
