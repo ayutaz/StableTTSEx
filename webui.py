@@ -14,8 +14,8 @@ from api import StableTTSAPI
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 tts_model_path = './checkpoints/tsukuyomi_ft200.pt'
-vocoder_model_path = './vocoders/pretrained/firefly-gan-base-generator.ckpt'
-vocoder_type = 'ffgan'
+vocoder_model_path = './vocoders/pretrained/bigvgan_generator.pt'
+vocoder_type = 'bigvgan'
 
 model = StableTTSAPI(tts_model_path, vocoder_model_path, vocoder_type).to(device)
 
