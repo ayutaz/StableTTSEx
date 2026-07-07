@@ -36,11 +36,14 @@ class ModelConfig:
 class TrainConfig:
     train_dataset_path: str = "filelists/filelist.json"
     test_dataset_path: str = "filelists/filelist.json"  # not used
-    # bf16 でアクティベーションメモリが約半減したぶん増やせる。OOM する場合は下げる（VRAM 依存の調整値）
-    batch_size: int = 48
+    # R2 ランは R1(378h・batch 32) と学習ダイナミクスを揃え、既存 japanese-378h との 3-way 比較を清潔に
+    # するため 32 に据える。bf16 でメモリに余裕はあるが、増やすと総ステップ/warmup 比/EMA 更新回数が変わる
+    batch_size: int = 32
     learning_rate: float = 1e-4
     num_epochs: int = 15
-    model_save_path: str = "./checkpoints"
+    # R2 出力は R1(vast_run1/) と対称に専用ディレクトリへ隔離する。初期値 upstream checkpoint_0.pt を
+    # このディレクトリ直下に置くこと（continue_training は model_save_path 直下から初期値を探すため）
+    model_save_path: str = "./checkpoints/vast_run2"
     log_dir: str = "./runs"
     log_interval: int = 16
     save_interval: int = 1
