@@ -36,7 +36,8 @@ class ModelConfig:
 class TrainConfig:
     train_dataset_path: str = "filelists/filelist.json"
     test_dataset_path: str = "filelists/filelist.json"  # not used
-    batch_size: int = 32
+    # bf16 でアクティベーションメモリが約半減したぶん増やせる。OOM する場合は下げる（VRAM 依存の調整値）
+    batch_size: int = 48
     learning_rate: float = 1e-4
     num_epochs: int = 15
     model_save_path: str = "./checkpoints"
@@ -63,6 +64,16 @@ class TrainConfig:
     grad_clip: float = 1.0
     # use_fused_optimizer: fused AdamW（CUDA 専用でカーネル起動を融合）。CPU 実行時は自動で無効化される
     use_fused_optimizer: bool = True
+    # Tier 2 学習最適化: DataLoader / DDP / compile / GPU MAS。
+    # num_workers/prefetch_factor: .pt mel ロードは I/O バウンド。GPU が速いほど worker と先読みを増やす
+    num_workers: int = 8
+    prefetch_factor: int = 4
+    # use_compile: torch.compile で decoder.estimator（DiT 本体）をコンパイル。バケットで系列長が変わるため
+    # dynamic=True で再コンパイルを抑える。GPU 依存で効果が変わるため既定オフ（A/B して有効化）
+    use_compile: bool = False
+    # use_gpu_mas: MAS を GPU ネイティブ実装にして毎ステップの GPU→CPU 同期を除去する。numba 版と
+    # ビット同一のアラインメントを返す（tests/test_mas.py で担保）。速度は GPU/系列長依存のため既定オフ
+    use_gpu_mas: bool = False
 
 
 @dataclass

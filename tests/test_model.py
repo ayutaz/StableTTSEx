@@ -5,7 +5,7 @@
 
 import torch
 
-from tests.conftest import TINY_N_MELS, TINY_N_VOCAB
+from tests.conftest import TINY_MODEL_KWARGS, TINY_N_MELS, TINY_N_VOCAB
 
 
 def _text_inputs(length=5):
@@ -120,6 +120,24 @@ def test_forward_bf16_autocast_path_runs(tiny_stabletts):
     assert attn.shape == (1, x.shape[1], y.shape[-1])
 
 
+def test_forward_gpu_mas_matches_numba_alignment(tiny_stabletts):
+    # Tier 2 最適化: use_gpu_mas=True の GPU MAS が numba 版と同一の教師アラインメントを返す。
+    # neg_cent はモデル重み + 入力から決定的に決まる（MAS は no_grad・RNG 非依存）ため、両者の attn は厳密一致
+    x, x_lengths = _text_inputs()
+    y = torch.randn(1, TINY_N_MELS, 48)
+    y_lengths = torch.tensor([48], dtype=torch.long)
+    z = torch.randn(1, TINY_N_MELS, 16)
+    z_lengths = torch.tensor([16], dtype=torch.long)
+
+    model_numba = tiny_stabletts(use_gpu_mas=False)
+    model_gpu = tiny_stabletts(use_gpu_mas=True)  # 同一 seed で重みは一致
+    torch.manual_seed(0)
+    attn_ref = model_numba.forward(x, x_lengths, y, y_lengths, z, z_lengths)[3]
+    torch.manual_seed(0)
+    attn_got = model_gpu.forward(x, x_lengths, y, y_lengths, z, z_lengths)[3]
+    assert torch.equal(attn_ref, attn_got)
+
+
 def test_forward_logit_normal_training_path_runs(tiny_stabletts):
     # Phase 2 施策5: logit_normal でも学習経路が有限損失を返す
     model = tiny_stabletts(timestep_sampling="logit_normal")
@@ -131,6 +149,22 @@ def test_forward_logit_normal_training_path_runs(tiny_stabletts):
     torch.manual_seed(0)
     losses = model.forward(x, x_lengths, y, y_lengths, z, z_lengths)[:3]
     assert all(torch.isfinite(loss) for loss in losses)
+
+
+def test_compiled_estimator_preserves_state_dict_keys():
+    # Tier 2 最適化: use_compile の in-place compile（nn.Module.compile）は state_dict のキーを変えない。
+    # module = torch.compile(...) の再代入だと _orig_mod. 接頭辞が付き既存チェックポイントと非互換になるため、
+    # in-place であることをチェックポイント互換の回帰ガードとして固定する（forward は呼ばず compile はしない）
+    from models.model import StableTTS
+
+    model = StableTTS(TINY_N_VOCAB, TINY_N_MELS, **TINY_MODEL_KWARGS)
+    before = set(model.state_dict().keys())
+    model.decoder.estimator.compile(dynamic=True)
+    after = set(model.state_dict().keys())
+    assert before == after
+    # 生モデルへ strict=True で相互ロード可能
+    fresh = StableTTS(TINY_N_VOCAB, TINY_N_MELS, **TINY_MODEL_KWARGS)
+    fresh.load_state_dict(model.state_dict(), strict=True)
 
 
 def test_default_kwargs_do_not_add_parameters():

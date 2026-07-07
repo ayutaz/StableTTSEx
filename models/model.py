@@ -8,6 +8,7 @@ from models.duration_predictor import DurationPredictor, duration_loss
 from models.flow_matching import CFMDecoder
 from models.reference_encoder import MelStyleEncoder
 from models.text_encoder import TextEncoder
+from utils.mas import maximum_path_torch
 from utils.mask import sequence_mask
 
 
@@ -47,11 +48,14 @@ class StableTTS(nn.Module):
         timestep_sampling="cosine",
         logit_normal_m=0.0,
         logit_normal_s=1.0,
+        use_gpu_mas=False,
     ):
         super().__init__()
 
         self.n_vocab = n_vocab
         self.mel_channels = mel_channels
+        # MAS 実装の選択。True で GPU ネイティブ（毎ステップの GPU→CPU 同期を除去）。numba 版とビット同一
+        self.use_gpu_mas = use_gpu_mas
 
         self.encoder = TextEncoder(
             n_vocab,
@@ -242,7 +246,10 @@ class StableTTS(nn.Module):
             neg_cent = neg_cent1 + neg_cent2 + neg_cent3 + neg_cent4
 
             attn_mask = torch.unsqueeze(x_mask, 2) * torch.unsqueeze(y_mask, -1)
-            attn = monotonic_align.maximum_path(neg_cent, attn_mask.squeeze(1)).unsqueeze(1).detach()
+            if self.use_gpu_mas:
+                attn = maximum_path_torch(neg_cent, attn_mask.squeeze(1)).unsqueeze(1).detach()
+            else:
+                attn = monotonic_align.maximum_path(neg_cent, attn_mask.squeeze(1)).unsqueeze(1).detach()
 
         # Compute loss between predicted log-scaled durations and those obtained from MAS
         # refered to as prior loss in the paper

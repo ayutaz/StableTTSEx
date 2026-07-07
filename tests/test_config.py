@@ -50,3 +50,7 @@ def test_train_config_phase2_r2_recipe():
     assert t.use_amp is True
     assert t.grad_clip == 1.0
     assert t.use_fused_optimizer is True
+    # Tier 2 学習最適化: DataLoader / compile / GPU MAS。compile・GPU MAS は GPU 依存で効果が変わるため既定オフ
+    assert (t.num_workers, t.prefetch_factor) == (8, 4)
+    assert t.use_compile is False
+    assert t.use_gpu_mas is False

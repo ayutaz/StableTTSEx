@@ -63,6 +63,7 @@ def train(rank, world_size):
         timestep_sampling=train_config.timestep_sampling,
         logit_normal_m=train_config.logit_normal_m,
         logit_normal_s=train_config.logit_normal_s,
+        use_gpu_mas=train_config.use_gpu_mas,
     ).to(rank)
 
     # パラメータ数を計算
@@ -74,7 +75,24 @@ def train(rank, world_size):
         print(f"Total parameters: {total_params:,}")
         print(f"Trainable parameters: {trainable_params:,}")
 
-    model = DDP(model, device_ids=[rank])
+    # Tier 2 最適化: DiT 本体（estimator）を torch.compile。MAS 等の graph break を避けるためサブモジュール
+    # 単位でコンパイルする。系列長がバケットで変わるので dynamic=True で再コンパイル爆発を抑える。
+    # in-place の nn.Module.compile を使う（module = torch.compile(...) の再代入は state_dict に _orig_mod.
+    # 接頭辞を付けチェックポイント互換を壊すため。in-place ならキーが不変）
+    if train_config.use_compile:
+        model.decoder.estimator.compile(dynamic=True)
+
+    # Tier 2 最適化: DDP の通信オーバーヘッド削減。
+    # gradient_as_bucket_view=True で勾配バッファのコピーを省く。使用パラメータが毎ステップ一定なので
+    # static_graph=True が安全（cfg dropout はマスク乗算で両経路とも常時計算される）。
+    # LayerNorm(affine 無し)のみで同期対象バッファが無いため broadcast_buffers=False で毎ステップの同期を省く
+    model = DDP(
+        model,
+        device_ids=[rank],
+        gradient_as_bucket_view=True,
+        static_graph=True,
+        broadcast_buffers=False,
+    )
 
     train_dataset = StableDataset(train_config.train_dataset_path, mel_config.hop_length)
     # 上限はデータセットの最長 mel 長を包含させる（境界外のサンプルは黙って捨てられるため。moe-speech は最長 ~1291）
@@ -88,10 +106,11 @@ def train(rank, world_size):
     train_dataloader = DataLoader(
         train_dataset,
         batch_sampler=train_sampler,
-        num_workers=4,
+        num_workers=train_config.num_workers,
         pin_memory=True,
         collate_fn=collate_fn,
         persistent_workers=True,
+        prefetch_factor=train_config.prefetch_factor,
     )
 
     if rank == 0:
