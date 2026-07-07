@@ -49,6 +49,7 @@ class StableTTS(nn.Module):
         logit_normal_m=0.0,
         logit_normal_s=1.0,
         use_gpu_mas=False,
+        use_tla_sa=False,
     ):
         super().__init__()
 
@@ -56,6 +57,9 @@ class StableTTS(nn.Module):
         self.mel_channels = mel_channels
         # MAS 実装の選択。True で GPU ネイティブ（毎ステップの GPU→CPU 同期を除去）。numba 版とビット同一
         self.use_gpu_mas = use_gpu_mas
+        # Phase 3 TLA-SA: plain 属性のみ（submodule/Parameter を足さない）。True で forward が中間表現を返す
+        # 経路を有効化する。損失を計算する TLASAHead は train.py 側の独立モジュールなので state_dict は不変
+        self.use_tla_sa = use_tla_sa
 
         self.encoder = TextEncoder(
             n_vocab,
@@ -197,7 +201,7 @@ class StableTTS(nn.Module):
             "attn": attn[:, :, :y_max_length],
         }
 
-    def forward(self, x, x_lengths, y, y_lengths, z, z_lengths):
+    def forward(self, x, x_lengths, y, y_lengths, z, z_lengths, return_tla=False):
         """
         Computes 3 losses:
             1. duration loss: loss between predicted token durations and those extracted by Monotinic Alignment Search (MAS).
@@ -266,9 +270,22 @@ class StableTTS(nn.Module):
         mu_y_masked = mu_y * cfg_mask + ~cfg_mask * self.fake_content.repeat(
             mu_y.size(0), 1, mu_y.size(-1)
         )  # mask content information for better diversity for flow-matching
-        diff_loss, _ = self.decoder.compute_loss(y, y_mask, mu_y_masked, c)
+        if return_tla:
+            # TLA-SA（学習時のみ）: デコーダ中間表現と timestep を取り出して補助話者整列損失（train.py の
+            # TLASAHead）に渡す。valid=cfg_mask で cfg ドロップ（c=fake_speaker）サンプルを整列対象から除外する
+            diff_loss, _, dec_hiddens, t_used = self.decoder.compute_loss(y, y_mask, mu_y_masked, c, return_hidden=True)
+        else:
+            diff_loss, _ = self.decoder.compute_loss(y, y_mask, mu_y_masked, c)
 
         prior_loss = torch.sum(0.5 * ((y - mu_y) ** 2 + math.log(2 * math.pi)) * y_mask)
         prior_loss = prior_loss / (torch.sum(y_mask) * self.mel_channels)
 
+        if return_tla:
+            tla_feats = {
+                "hiddens": dec_hiddens,
+                "t": t_used,
+                "y_mask": y_mask,
+                "valid": cfg_mask.reshape(-1),  # [B] bool: cfg ドロップされていない（real speaker）サンプル
+            }
+            return dur_loss, diff_loss, prior_loss, attn, tla_feats
         return dur_loss, diff_loss, prior_loss, attn

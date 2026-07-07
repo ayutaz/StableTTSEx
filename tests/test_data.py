@@ -52,15 +52,16 @@ def test_random_slice_within_bounds_and_deterministic():
     assert torch.equal(s1, x[..., start : start + seg])
 
 
-# --- collate_fn（パディング + 参照スライス） ---
+# --- collate_fn（パディング + 参照スライス + TLA-SA 教師埋め込み） ---
 def test_collate_fn_shapes_and_lengths():
     random.seed(0)
     n_mels = 8
+    # 各サンプルは (mel, phone, spk_emb)。spk_emb=None は TLA-SA 無効（既存）経路
     batch = [
-        (torch.randn(n_mels, 40), torch.tensor([1, 2, 3], dtype=torch.long)),
-        (torch.randn(n_mels, 60), torch.tensor([1, 2, 3, 4, 5], dtype=torch.long)),
+        (torch.randn(n_mels, 40), torch.tensor([1, 2, 3], dtype=torch.long), None),
+        (torch.randn(n_mels, 60), torch.tensor([1, 2, 3, 4, 5], dtype=torch.long), None),
     ]
-    texts_padded, text_lengths, mels_padded, mel_lengths, sliced_padded, sliced_lengths = collate_fn(batch)
+    texts_padded, text_lengths, mels_padded, mel_lengths, sliced_padded, sliced_lengths, spk_emb = collate_fn(batch)
 
     assert texts_padded.shape == (2, 5)  # max text length
     assert torch.equal(text_lengths, torch.tensor([3, 5]))
@@ -70,6 +71,27 @@ def test_collate_fn_shapes_and_lengths():
     assert sliced_padded.shape[:2] == (2, n_mels)
     assert torch.all(sliced_lengths >= 1)
     assert torch.all(sliced_lengths <= mel_lengths)
+    assert spk_emb is None  # 全サンプル None → None
+
+
+def test_collate_fn_spk_emb_stacked_when_all_present():
+    # 全サンプルに TLA-SA 教師埋め込みが有れば [B, D'] に stack される
+    batch = [
+        (torch.randn(8, 40), torch.tensor([1, 2], dtype=torch.long), torch.randn(192)),
+        (torch.randn(8, 60), torch.tensor([1, 2, 3], dtype=torch.long), torch.randn(192)),
+    ]
+    *_, spk_emb = collate_fn(batch)
+    assert spk_emb.shape == (2, 192)
+
+
+def test_collate_fn_spk_emb_none_when_partial():
+    # いずれか欠ければ None（学習時 use_tla_sa=True は train.py の assert で早期失敗させる想定）
+    batch = [
+        (torch.randn(8, 40), torch.tensor([1, 2], dtype=torch.long), torch.randn(192)),
+        (torch.randn(8, 60), torch.tensor([1, 2, 3], dtype=torch.long), None),
+    ]
+    *_, spk_emb = collate_fn(batch)
+    assert spk_emb is None
 
 
 # --- DistributedBucketSampler ---

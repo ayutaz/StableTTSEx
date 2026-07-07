@@ -48,7 +48,7 @@ def tiny_stabletts():
     """CPU 上の極小 StableTTS を返す factory（eval 済み）。timestep_sampling を差し替え可能。"""
     from models.model import StableTTS  # monotonic_align(numba JIT) を引くので遅延 import
 
-    def _build(timestep_sampling="cosine", logit_normal_m=0.0, logit_normal_s=1.0, use_gpu_mas=False):
+    def _build(timestep_sampling="cosine", logit_normal_m=0.0, logit_normal_s=1.0, use_gpu_mas=False, use_tla_sa=False):
         torch.manual_seed(0)
         model = StableTTS(
             TINY_N_VOCAB,
@@ -58,6 +58,7 @@ def tiny_stabletts():
             logit_normal_m=logit_normal_m,
             logit_normal_s=logit_normal_s,
             use_gpu_mas=use_gpu_mas,
+            use_tla_sa=use_tla_sa,
         )
         model.eval()
         return model

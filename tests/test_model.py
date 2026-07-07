@@ -215,3 +215,64 @@ def test_full_config_param_count_and_embedding():
     model = StableTTS(len(symbols), MelConfig().n_mels, **asdict(ModelConfig()))
     assert sum(p.numel() for p in model.parameters()) == 31_644_545
     assert tuple(model.encoder.emb.weight.shape) == (401, 256)
+
+
+def test_use_tla_sa_does_not_change_state_dict():
+    # Phase 3 TLA-SA: use_tla_sa は plain 属性で submodule/Parameter を足さない
+    # → state_dict キー集合・パラメータ数が不変（TLASAHead は train.py 側の独立モジュール）
+    from models.model import StableTTS
+
+    base = StableTTS(TINY_N_VOCAB, TINY_N_MELS, **TINY_MODEL_KWARGS)
+    withtla = StableTTS(TINY_N_VOCAB, TINY_N_MELS, **TINY_MODEL_KWARGS, use_tla_sa=True)
+    assert set(base.state_dict().keys()) == set(withtla.state_dict().keys())
+    assert sum(p.numel() for p in base.parameters()) == sum(p.numel() for p in withtla.parameters())
+    withtla.load_state_dict(base.state_dict(), strict=True)  # 相互ロード可
+
+
+def test_forward_return_tla_shapes_and_noop_equivalence(tiny_stabletts):
+    # return_tla=True で 5-tuple。tla_feats の hiddens は n_dec_layers 本・各 [B,hidden,T]・有限。
+    # かつ同一 seed で diff_loss が非 tla 経路と一致（no-op 等価: return_tla は estimator を1回呼ぶだけで数値不変）
+    model = tiny_stabletts(use_tla_sa=True)
+    x, x_lengths = _text_inputs()
+    y = torch.randn(1, TINY_N_MELS, 48)
+    y_lengths = torch.tensor([48], dtype=torch.long)
+    z = torch.randn(1, TINY_N_MELS, 16)
+    z_lengths = torch.tensor([16], dtype=torch.long)
+
+    torch.manual_seed(0)
+    _, diff1, _, _ = model.forward(x, x_lengths, y, y_lengths, z, z_lengths)
+    torch.manual_seed(0)
+    out = model.forward(x, x_lengths, y, y_lengths, z, z_lengths, return_tla=True)
+    assert len(out) == 5
+    _, diff2, _, _, tla = out
+    assert torch.equal(diff1, diff2)  # no-op 等価
+    n_dec_layers = TINY_MODEL_KWARGS["n_dec_layers"]
+    assert len(tla["hiddens"]) == n_dec_layers
+    for h in tla["hiddens"]:
+        assert h.shape[:2] == (1, TINY_MODEL_KWARGS["hidden_channels"])
+        assert torch.isfinite(h).all()
+    assert tla["valid"].shape == (1,)
+
+
+def test_tla_sa_head_forward_scalar_finite():
+    # TLASAHead: スカラ有限、uniform フォールバック、全 cfg ドロップ時の 0 割保護を検証
+    from models.tla_sa import TLASAHead
+
+    n_layers, d_hidden, d_teacher, b, t = 6, 16, 192, 3, 20
+    hiddens = [torch.randn(b, d_hidden, t) for _ in range(n_layers)]
+    ts = torch.rand(b)
+    e_sa = torch.randn(b, d_teacher)
+    ymask = torch.ones(b, 1, t)
+    valid = torch.ones(b, dtype=torch.bool)
+
+    head = TLASAHead(n_layers=n_layers, d_hidden=d_hidden, d_teacher=d_teacher)
+    loss = head(hiddens, ts, e_sa, ymask, valid)
+    assert loss.ndim == 0 and torch.isfinite(loss)
+
+    head_u = TLASAHead(n_layers=n_layers, d_hidden=d_hidden, d_teacher=d_teacher, uniform=True)
+    loss_u = head_u(hiddens, ts, e_sa, ymask, valid)
+    assert loss_u.ndim == 0 and torch.isfinite(loss_u)
+
+    # 全サンプル cfg ドロップ（valid 全 False）でも 0 割せず有限
+    loss_zero = head(hiddens, ts, e_sa, ymask, torch.zeros(b, dtype=torch.bool))
+    assert torch.isfinite(loss_zero)

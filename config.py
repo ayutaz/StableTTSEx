@@ -77,6 +77,16 @@ class TrainConfig:
     # use_gpu_mas: MAS を GPU ネイティブ実装にして毎ステップの GPU→CPU 同期を除去する。numba 版と
     # ビット同一のアラインメントを返す（tests/test_mas.py で担保）。速度は GPU/系列長依存のため既定オフ
     use_gpu_mas: bool = False
+    # Phase 3 第一弾: TLA-SA（補助話者整列損失、arXiv:2511.09995）。use_tla_sa=False で現行とビット一致
+    # （TLASAHead は train.py 側の独立モジュールで、StableTTS の state_dict には一切足さない）。
+    # 教師 SV エンコーダは評価の ECAPA とは別系統にする（テストに教えるバイアス回避）。
+    # 埋め込みは precompute_spk_emb.py で事前計算し filelist に spk_emb_path を追加しておく。
+    use_tla_sa: bool = False
+    tla_sa_lambda: float = 0.5  # L = L_CFM(等) + λ·L_TLA-SA。学習初期に sa/diff 比を見て再調整する
+    tla_sa_alpha: float = 0.01  # 層重み w のエントロピー正則係数
+    tla_sa_teacher: str = "campplus"  # "campplus"(192次元, Apache-2.0) | "wavlm_sv"(512次元)
+    tla_sa_teacher_dim: int = 192  # teacher と必ず整合（campplus=192 / wavlm_sv=512）
+    tla_sa_uniform_weight: bool = False  # True で層重み w_i=1/N 固定（timestep MLP・entropy 正則を無効化）
 
 
 @dataclass

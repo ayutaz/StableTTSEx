@@ -54,3 +54,9 @@ def test_train_config_phase2_r2_recipe():
     assert (t.num_workers, t.prefetch_factor) == (8, 4)
     assert t.use_compile is False
     assert t.use_gpu_mas is False
+    # Phase 3 TLA-SA: 既定オフで現行とビット一致（有効化は precompute_spk_emb.py + フラグ設定で行う）
+    assert t.use_tla_sa is False
+    assert (t.tla_sa_lambda, t.tla_sa_alpha) == (0.5, 0.01)
+    assert t.tla_sa_teacher == "campplus"
+    assert t.tla_sa_teacher_dim == 192
+    assert t.tla_sa_uniform_weight is False

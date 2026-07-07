@@ -134,7 +134,7 @@ class Decoder(nn.Module):
             nn.init.constant_(block.block.adaLN_modulation[-1].weight, 0)
             nn.init.constant_(block.block.adaLN_modulation[-1].bias, 0)
 
-    def forward(self, t, x, mask, mu, c, skip_layers=None):
+    def forward(self, t, x, mask, mu, c, skip_layers=None, return_hidden=False):
         """Forward pass of the DiT model.
 
         Args:
@@ -145,9 +145,14 @@ class Decoder(nn.Module):
             c (torch.Tensor): shape (batch_size, gin_channels)
             skip_layers (optional): indices of DiT blocks to skip (Skip Layer Guidance).
                 Long skip connection bookkeeping still runs for skipped blocks.
+            return_hidden (bool): if True (training-only, TLA-SA), also return the list of
+                per-block output hiddens. This path is mutually exclusive with skip_layers
+                (which stays None during training), so hidden_list always has n_dec_layers
+                entries. Inference never passes this, so the default path (return_hidden=False)
+                is byte-identical to before.
 
         Returns:
-            _type_: _description_
+            output, or (output, hidden_list) when return_hidden=True
         """
 
         t = self.time_mlp(self.time_embeddings(t))
@@ -157,6 +162,7 @@ class Decoder(nn.Module):
         x = self.in_proj(x)
 
         lsc_outputs = [] if self.use_lsc else None
+        hidden_list = [] if return_hidden else None
 
         for idx, block in enumerate(self.blocks):
             # add long skip connection, see https://arxiv.org/pdf/2209.12152 for more details
@@ -170,7 +176,11 @@ class Decoder(nn.Module):
             if skip_layers is not None and idx in skip_layers:
                 continue
             x = block(x, c, t, mask)
+            if return_hidden:
+                hidden_list.append(x)
 
         output = self.final_proj(x * mask)
 
+        if return_hidden:
+            return output * mask, hidden_list
         return output * mask

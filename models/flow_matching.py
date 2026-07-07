@@ -123,7 +123,7 @@ class CFMDecoder(torch.nn.Module):
             output = output + slg_scale * (cond_output - skip_output)
         return output
 
-    def compute_loss(self, x1, mask, mu, c):
+    def compute_loss(self, x1, mask, mu, c, return_hidden=False):
         """Computes diffusion loss
 
         Args:
@@ -134,11 +134,12 @@ class CFMDecoder(torch.nn.Module):
             mu (torch.Tensor): output of encoder
                 shape: (batch_size, n_feats, mel_timesteps)
             c (torch.Tensor, optional): speaker condition.
+            return_hidden (bool): if True (training-only, TLA-SA), also return the estimator's
+                per-block hiddens and the sampled timestep. Default False keeps the original
+                (loss, y) return and a single estimator forward (byte-identical).
 
         Returns:
-            loss: conditional flow matching loss
-            y: conditional flow
-                shape: (batch_size, n_feats, mel_timesteps)
+            (loss, y), or (loss, y, hidden_list, t) when return_hidden=True
         """
         b, _, t = mu.shape
 
@@ -159,7 +160,10 @@ class CFMDecoder(torch.nn.Module):
         y = (1 - (1 - self.sigma_min) * t) * z + t * x1
         u = x1 - (1 - self.sigma_min) * z
 
-        loss = F.mse_loss(self.estimator(t.squeeze(), y, mask, mu, c), u, reduction="sum") / (
-            torch.sum(mask) * u.size(1)
-        )
+        t_in = t.squeeze()
+        if return_hidden:
+            pred, hidden_list = self.estimator(t_in, y, mask, mu, c, return_hidden=True)
+            loss = F.mse_loss(pred, u, reduction="sum") / (torch.sum(mask) * u.size(1))
+            return loss, y, hidden_list, t_in
+        loss = F.mse_loss(self.estimator(t_in, y, mask, mu, c), u, reduction="sum") / (torch.sum(mask) * u.size(1))
         return loss, y
