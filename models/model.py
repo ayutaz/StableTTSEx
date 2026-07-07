@@ -44,6 +44,9 @@ class StableTTS(nn.Module):
         kernel_size,
         p_dropout,
         gin_channels,
+        timestep_sampling="cosine",
+        logit_normal_m=0.0,
+        logit_normal_s=1.0,
     ):
         super().__init__()
 
@@ -76,6 +79,9 @@ class StableTTS(nn.Module):
             kernel_size,
             p_dropout,
             gin_channels,
+            timestep_sampling=timestep_sampling,
+            logit_normal_m=logit_normal_m,
+            logit_normal_s=logit_normal_s,
         )
 
         # uncondition input for cfg

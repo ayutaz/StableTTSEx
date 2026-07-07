@@ -18,6 +18,7 @@ from datas.dataset import StableDataset, collate_fn
 from datas.sampler import DistributedBucketSampler
 from models.model import StableTTS
 from text import symbols
+from utils.ema import EMA
 from utils.load import continue_training
 from utils.scheduler import get_cosine_schedule_with_warmup
 
@@ -51,7 +52,14 @@ def train(rank, world_size):
 
     _init_config(model_config, mel_config, train_config)
 
-    model = StableTTS(len(symbols), mel_config.n_mels, **asdict(model_config)).to(rank)
+    model = StableTTS(
+        len(symbols),
+        mel_config.n_mels,
+        **asdict(model_config),
+        timestep_sampling=train_config.timestep_sampling,
+        logit_normal_m=train_config.logit_normal_m,
+        logit_normal_s=train_config.logit_normal_s,
+    ).to(rank)
 
     # パラメータ数を計算
     total_params = sum(p.numel() for p in model.parameters())
@@ -95,6 +103,18 @@ def train(rank, world_size):
     # load latest checkpoints if possible
     current_epoch = continue_training(train_config.model_save_path, model, optimizer)
 
+    # Phase 2 施策6: EMA は rank 0 でのみ維持する（DDP が全 rank の重みを同期するため代表となる）。
+    # continue_training が生重みをロードした後に生成するので、シャドウは直近チェックポイント基準で初期化される。
+    ema = None
+    if rank == 0 and train_config.use_ema:
+        ema = EMA(model.module, decay=train_config.ema_decay, warmup=train_config.ema_warmup)
+        ema_resume_path = os.path.join(train_config.model_save_path, f"ema_state_{current_epoch - 1}.pt")
+        if current_epoch > 0 and os.path.exists(ema_resume_path):
+            ema.load_ema_training_state(torch.load(ema_resume_path, map_location="cpu"))
+            print(f"resume EMA from {current_epoch - 1} epoch")
+        elif current_epoch > 0:
+            print(f"warning: EMA state for epoch {current_epoch - 1} not found; initializing EMA from current weights")
+
     model.train()
     for epoch in range(current_epoch, train_config.num_epochs):  # loop over the train_dataset multiple times
         train_dataloader.batch_sampler.set_epoch(epoch)
@@ -112,6 +132,8 @@ def train(rank, world_size):
             loss.backward()
             optimizer.step()
             scheduler.step()
+            if ema is not None:
+                ema.update(model.module)
 
             if rank == 0 and batch_idx % train_config.log_interval == 0:
                 steps = epoch * len(dataloader) + batch_idx
@@ -123,6 +145,13 @@ def train(rank, world_size):
         if rank == 0 and epoch % train_config.save_interval == 0:
             torch.save(model.module.state_dict(), os.path.join(train_config.model_save_path, f"checkpoint_{epoch}.pt"))
             torch.save(optimizer.state_dict(), os.path.join(train_config.model_save_path, f"optimizer_{epoch}.pt"))
+            if ema is not None:
+                # 推論用の EMA 重み（module.state_dict 互換で api.py にそのままロード可）とレジューム用状態。
+                # ファイル名は "checkpoint" 始まりにしない（continue_training の走査が生重みと衝突するため）
+                torch.save(ema.state_dict(), os.path.join(train_config.model_save_path, f"ema_checkpoint_{epoch}.pt"))
+                torch.save(
+                    ema.ema_training_state(), os.path.join(train_config.model_save_path, f"ema_state_{epoch}.pt")
+                )
         print(f"Rank {rank}, Epoch {epoch}, Loss {loss.item()}")
 
     cleanup()

@@ -21,6 +21,9 @@ class CFMDecoder(torch.nn.Module):
         kernel_size,
         p_dropout,
         gin_channels,
+        timestep_sampling="cosine",
+        logit_normal_m=0.0,
+        logit_normal_s=1.0,
     ):
         super().__init__()
         self.noise_channels = noise_channels
@@ -30,6 +33,12 @@ class CFMDecoder(torch.nn.Module):
         self.filter_channels = filter_channels
         self.gin_channels = gin_channels
         self.sigma_min = 1e-4
+        # Phase 2 施策5: 学習時 timestep サンプリング（推論には無関係）
+        if timestep_sampling not in ("cosine", "logit_normal"):
+            raise ValueError(f"timestep_sampling must be 'cosine' or 'logit_normal', got {timestep_sampling!r}")
+        self.timestep_sampling = timestep_sampling
+        self.logit_normal_m = logit_normal_m
+        self.logit_normal_s = logit_normal_s
 
         self.estimator = Decoder(
             noise_channels,
@@ -134,9 +143,15 @@ class CFMDecoder(torch.nn.Module):
         b, _, t = mu.shape
 
         # random timestep
-        # use cosine timestep scheduler from cosyvoice: https://github.com/FunAudioLLM/CosyVoice/blob/main/cosyvoice/flow/flow_matching.py
-        t = torch.rand([b, 1, 1], device=mu.device, dtype=mu.dtype)
-        t = 1 - torch.cos(t * 0.5 * torch.pi)
+        if self.timestep_sampling == "logit_normal":
+            # Phase 2 施策5: SD3 (arXiv:2403.03206) の logit-normal(m, s)。中間 t を重点サンプリング。
+            # sigmoid は有限入力で (0,1) 開区間に収まるためクランプ不要（端点で y/u が退化しない）
+            eps = torch.randn([b, 1, 1], device=mu.device, dtype=mu.dtype)
+            t = torch.sigmoid(self.logit_normal_m + self.logit_normal_s * eps)
+        else:
+            # use cosine timestep scheduler from cosyvoice: https://github.com/FunAudioLLM/CosyVoice/blob/main/cosyvoice/flow/flow_matching.py
+            t = torch.rand([b, 1, 1], device=mu.device, dtype=mu.dtype)
+            t = 1 - torch.cos(t * 0.5 * torch.pi)
 
         # sample noise p(x_0)
         z = torch.randn_like(x1)
