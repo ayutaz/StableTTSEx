@@ -1,8 +1,8 @@
 """config.py の不変条件。MelConfig/ModelConfig の値は既存チェックポイント互換の前提であり、
-壊れると静かに非互換になる。TrainConfig は「次に回す学習ランの設定」で、現在は Phase 2 R2
-（logit_normal + EMA）を選択している。チェックポイント互換のビット不変性の本質はモデル層
-（CFMDecoder/StableTTS の kwargs 既定 = cosine/off、推論は asdict(ModelConfig) 経由で不変）
-にあり、test_model.py / test_flow_matching.py が担保する。
+壊れると静かに非互換になる。TrainConfig は「次に回す学習ランの設定」で、現在は Phase 3 第一弾
+（cosine + TLA-SA 補助話者整列損失、EMA/logit_normal は不使用）を選択している。チェックポイント
+互換のビット不変性の本質はモデル層（CFMDecoder/StableTTS の kwargs 既定 = cosine/off、推論は
+asdict(ModelConfig) 経由で不変）にあり、test_model.py / test_flow_matching.py が担保する。
 """
 
 from config import MelConfig, ModelConfig, TrainConfig
@@ -36,27 +36,23 @@ def test_model_config_architecture_constants():
     assert c.n_dec_layers % 2 == 0
 
 
-def test_train_config_phase2_r2_recipe():
+def test_train_config_phase3_tla_sa_recipe():
     t = TrainConfig()
-    # 現在の学習設定は Phase 2 R2: logit_normal timestep + EMA
-    assert t.timestep_sampling in ("cosine", "logit_normal")
-    assert t.timestep_sampling == "logit_normal"
-    # m=0 は t 規約が SD3 と逆でも対称（中間 t 重点のみ効かせる）。s は標準
-    assert (t.logit_normal_m, t.logit_normal_s) == (0.0, 1.0)
-    assert t.use_ema is True
-    assert (t.ema_decay, t.ema_warmup) == (0.9995, 10)
-    # Tier 1 学習最適化: bf16 AMP + 勾配クリップ + fused AdamW。数値精度のみ変わり、チェックポイント形式・
-    # n_vocab・パラメータ数・推論経路は不変（互換性はモデル層で担保）
+    # 現在の学習設定は Phase 3 第一弾 = TLA-SA（cosine + EMA無 + 補助話者整列損失）。
+    # baseline japanese-378h(cosine) と揃え、logit_normal(Phase 2 で不採用)は cosine に戻して切り分ける
+    assert t.timestep_sampling == "cosine"
+    assert t.use_ema is False
+    # TLA-SA 有効。教師はスモーク用 wavlm_sv(512次元)。出力は vast_run3 に隔離（R1/R2 と対称）
+    assert t.use_tla_sa is True
+    assert (t.tla_sa_lambda, t.tla_sa_alpha) == (0.5, 0.01)
+    assert t.tla_sa_teacher == "wavlm_sv"
+    assert t.tla_sa_teacher_dim == 512
+    assert t.tla_sa_uniform_weight is False
+    assert t.model_save_path == "./checkpoints/vast_run3"
+    # Tier 1/2 学習最適化は据え置き（数値精度のみ変わり、チェックポイント形式・n_vocab・param数・推論経路は不変）
     assert t.use_amp is True
     assert t.grad_clip == 1.0
     assert t.use_fused_optimizer is True
-    # Tier 2 学習最適化: DataLoader / compile / GPU MAS。compile・GPU MAS は GPU 依存で効果が変わるため既定オフ
     assert (t.num_workers, t.prefetch_factor) == (8, 4)
     assert t.use_compile is False
     assert t.use_gpu_mas is False
-    # Phase 3 TLA-SA: 既定オフで現行とビット一致（有効化は precompute_spk_emb.py + フラグ設定で行う）
-    assert t.use_tla_sa is False
-    assert (t.tla_sa_lambda, t.tla_sa_alpha) == (0.5, 0.01)
-    assert t.tla_sa_teacher == "campplus"
-    assert t.tla_sa_teacher_dim == 192
-    assert t.tla_sa_uniform_weight is False

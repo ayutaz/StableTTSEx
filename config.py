@@ -41,22 +41,22 @@ class TrainConfig:
     batch_size: int = 32
     learning_rate: float = 1e-4
     num_epochs: int = 15
-    # R2 出力は R1(vast_run1/) と対称に専用ディレクトリへ隔離する。初期値 upstream checkpoint_0.pt を
+    # Phase 3 TLA-SA ラン。R1/R2 と対称に専用ディレクトリへ隔離する。初期値 upstream checkpoint_0.pt を
     # このディレクトリ直下に置くこと（continue_training は model_save_path 直下から初期値を探すため）
-    model_save_path: str = "./checkpoints/vast_run2"
+    model_save_path: str = "./checkpoints/vast_run3"
     log_dir: str = "./runs"
     log_interval: int = 16
     save_interval: int = 1
     warmup_steps: int = 200
     # Phase 2 施策5: 学習時 timestep サンプリング。"cosine" = 既存 CosyVoice スケジューラ（ビット不変）、
-    # "logit_normal" = SD3 式 logit-normal(m, s)（中間 t 重点）。R2 ラン: logit_normal
-    # 注: このリポジトリの t 規約は SD3 と逆（t=0→noise, t=1→data）。m=0 は対称なので影響なし。
-    # m≠0 で調整する際は SD3 の符号を反転させること
-    timestep_sampling: str = "logit_normal"
+    # "logit_normal" = SD3 式 logit-normal(m, s)（中間 t 重点）。Phase 3 TLA-SA ラン: cosine
+    #（logit_normal は Phase 2 で不採用。baseline japanese-378h=cosine と揃え TLA-SA の効果だけを切り分ける）
+    timestep_sampling: str = "cosine"
     logit_normal_m: float = 0.0
     logit_normal_s: float = 1.0
-    # Phase 2 施策6: EMA 重み。use_ema=False で既存挙動。decay は warmup 付き上限（utils/ema.py 参照）。R2 ラン: True
-    use_ema: bool = True
+    # Phase 2 施策6: EMA 重み。use_ema=False で既存挙動。decay は warmup 付き上限（utils/ema.py 参照）。
+    # Phase 3 TLA-SA ラン: False（EMA の微改善を混ぜず TLA-SA 単独の効果を baseline と切り分ける）
+    use_ema: bool = False
     ema_decay: float = 0.9995
     ema_warmup: int = 10
     # Tier 1 学習最適化（GPU スループット向上）。いずれも数値精度は変わるが、チェックポイント形式・
@@ -81,11 +81,11 @@ class TrainConfig:
     # （TLASAHead は train.py 側の独立モジュールで、StableTTS の state_dict には一切足さない）。
     # 教師 SV エンコーダは評価の ECAPA とは別系統にする（テストに教えるバイアス回避）。
     # 埋め込みは precompute_spk_emb.py で事前計算し filelist に spk_emb_path を追加しておく。
-    use_tla_sa: bool = False
+    use_tla_sa: bool = True
     tla_sa_lambda: float = 0.5  # L = L_CFM(等) + λ·L_TLA-SA。学習初期に sa/diff 比を見て再調整する
     tla_sa_alpha: float = 0.01  # 層重み w のエントロピー正則係数
-    tla_sa_teacher: str = "campplus"  # "campplus"(192次元, Apache-2.0) | "wavlm_sv"(512次元)
-    tla_sa_teacher_dim: int = 192  # teacher と必ず整合（campplus=192 / wavlm_sv=512）
+    tla_sa_teacher: str = "wavlm_sv"  # スモークは vendor 不要の wavlm_sv(512次元)。本命は campplus(192次元, Apache-2.0)
+    tla_sa_teacher_dim: int = 512  # teacher と必ず整合（campplus=192 / wavlm_sv=512）
     tla_sa_uniform_weight: bool = False  # True で層重み w_i=1/N 固定（timestep MLP・entropy 正則を無効化）
 
 
