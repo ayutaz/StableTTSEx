@@ -55,6 +55,14 @@ class TrainConfig:
     use_ema: bool = True
     ema_decay: float = 0.9995
     ema_warmup: int = 10
+    # Tier 1 学習最適化（GPU スループット向上）。いずれも数値精度は変わるが、チェックポイント形式・
+    # n_vocab・パラメータ数・推論経路には影響しない。R2 はゼロからの再事前学習なので導入の最適タイミング。
+    # use_amp: bf16 自動混合精度（autocast）。False で従来の純 FP32。bf16 は GradScaler 不要（fp16 と違い縮尺不要）
+    use_amp: bool = True
+    # grad_clip: 勾配ノルムのクリップ上限。0 以下で無効。bf16 + logit_normal は勾配分散が変わるため既定で有効化
+    grad_clip: float = 1.0
+    # use_fused_optimizer: fused AdamW（CUDA 専用でカーネル起動を融合）。CPU 実行時は自動で無効化される
+    use_fused_optimizer: bool = True
 
 
 @dataclass

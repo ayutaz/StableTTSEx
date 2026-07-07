@@ -45,3 +45,8 @@ def test_train_config_phase2_r2_recipe():
     assert (t.logit_normal_m, t.logit_normal_s) == (0.0, 1.0)
     assert t.use_ema is True
     assert (t.ema_decay, t.ema_warmup) == (0.9995, 10)
+    # Tier 1 学習最適化: bf16 AMP + 勾配クリップ + fused AdamW。数値精度のみ変わり、チェックポイント形式・
+    # n_vocab・パラメータ数・推論経路は不変（互換性はモデル層で担保）
+    assert t.use_amp is True
+    assert t.grad_clip == 1.0
+    assert t.use_fused_optimizer is True

@@ -102,6 +102,24 @@ def test_forward_returns_three_finite_losses(tiny_stabletts):
     assert attn.shape == (1, x.shape[1], y.shape[-1])
 
 
+def test_forward_bf16_autocast_path_runs(tiny_stabletts):
+    # Tier 1 最適化: bf16 autocast 下でも学習経路が有限損失を返す（MAS の neg_cent は fp32 保護される）。
+    # conftest が CPU 固定するため device_type="cpu" の bf16 autocast で検証する
+    model = tiny_stabletts(timestep_sampling="logit_normal")
+    x, x_lengths = _text_inputs()
+    y = torch.randn(1, TINY_N_MELS, 48)
+    y_lengths = torch.tensor([48], dtype=torch.long)
+    z = torch.randn(1, TINY_N_MELS, 16)
+    z_lengths = torch.tensor([16], dtype=torch.long)
+    torch.manual_seed(0)
+    with torch.autocast(device_type="cpu", dtype=torch.bfloat16):
+        dur_loss, diff_loss, prior_loss, attn = model.forward(x, x_lengths, y, y_lengths, z, z_lengths)
+    for loss in (dur_loss, diff_loss, prior_loss):
+        assert loss.ndim == 0 and torch.isfinite(loss)
+    # MAS は fp32 で計算されるため attn は bf16 でも従来と同じ shape/整数境界を保つ
+    assert attn.shape == (1, x.shape[1], y.shape[-1])
+
+
 def test_forward_logit_normal_training_path_runs(tiny_stabletts):
     # Phase 2 施策5: logit_normal でも学習経路が有限損失を返す
     model = tiny_stabletts(timestep_sampling="logit_normal")

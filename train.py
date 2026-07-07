@@ -23,6 +23,10 @@ from utils.load import continue_training
 from utils.scheduler import get_cosine_schedule_with_warmup
 
 torch.backends.cudnn.benchmark = True
+# Tier 1 最適化: Ampere 以降の Tensor Core を使うため matmul の TF32 を許可する。
+# PyTorch は matmul の TF32 が既定 False（純 FP32）なので、明示有効化で純 FP32 比 数倍。精度劣化は無視できる範囲。
+torch.set_float32_matmul_precision("high")
+torch.backends.cudnn.allow_tf32 = True
 
 
 def setup(rank, world_size):
@@ -93,7 +97,9 @@ def train(rank, world_size):
     if rank == 0:
         writer = SummaryWriter(train_config.log_dir)
 
-    optimizer = optim.AdamW(model.parameters(), lr=train_config.learning_rate)
+    # fused AdamW は CUDA かつ全パラメータが CUDA 上にある場合のみ有効（CPU では使えないためフォールバック）
+    use_fused = train_config.use_fused_optimizer and torch.cuda.is_available()
+    optimizer = optim.AdamW(model.parameters(), lr=train_config.learning_rate, fused=use_fused)
     scheduler = get_cosine_schedule_with_warmup(
         optimizer,
         num_warmup_steps=int(train_config.warmup_steps),
@@ -127,9 +133,15 @@ def train(rank, world_size):
             datas = [data.to(rank, non_blocking=True) for data in datas]
             x, x_lengths, y, y_lengths, z, z_lengths = datas
             optimizer.zero_grad()
-            dur_loss, diff_loss, prior_loss, _ = model(x, x_lengths, y, y_lengths, z, z_lengths)
+            # Tier 1 最適化: bf16 autocast。matmul/conv/attention を bf16 で走らせ ~1.5-2x・メモリ半減。
+            # bf16 は fp16 と違いダイナミックレンジが広く GradScaler 不要。損失関数（mse_loss 等）と MAS は
+            # autocast の fp32 ポリシー / model 側の明示 fp32 で保護される
+            with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=train_config.use_amp):
+                dur_loss, diff_loss, prior_loss, _ = model(x, x_lengths, y, y_lengths, z, z_lengths)
             loss = dur_loss + diff_loss + prior_loss
             loss.backward()
+            if train_config.grad_clip > 0:
+                torch.nn.utils.clip_grad_norm_(model.parameters(), train_config.grad_clip)
             optimizer.step()
             scheduler.step()
             if ema is not None:

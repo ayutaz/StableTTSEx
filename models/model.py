@@ -228,12 +228,17 @@ class StableTTS(nn.Module):
         attn_mask = x_mask.unsqueeze(-1) * y_mask.unsqueeze(2)
 
         # Use MAS to find most likely alignment `attn` between text and mel-spectrogram
-        with torch.no_grad():
-            s_p_sq_r = torch.ones_like(mu_x)  # [b, d, t]
-            neg_cent1 = torch.sum(-0.5 * math.log(2 * math.pi) - torch.zeros_like(mu_x), [1], keepdim=True)
-            neg_cent2 = torch.einsum("bdt, bds -> bts", -0.5 * (y**2), s_p_sq_r)
-            neg_cent3 = torch.einsum("bdt, bds -> bts", y, (mu_x * s_p_sq_r))
-            neg_cent4 = torch.sum(-0.5 * (mu_x**2) * s_p_sq_r, [1], keepdim=True)
+        # bf16 autocast 下でも MAS のアラインメントコストは fp32 で計算する（128 mel ch の総和で桁が大きく、
+        # bf16 では精度が落ちてアラインメントが劣化するため）。y_f/mu_x_f はローカルで、後段は元テンソルを使う。
+        # CPU / 非 autocast 時は fp32 コピー + 無効 autocast の no-op で、従来と bit 単位で同一。
+        with torch.no_grad(), torch.autocast(device_type=y.device.type, enabled=False):
+            y_f = y.float()
+            mu_x_f = mu_x.float()
+            s_p_sq_r = torch.ones_like(mu_x_f)  # [b, d, t]
+            neg_cent1 = torch.sum(-0.5 * math.log(2 * math.pi) - torch.zeros_like(mu_x_f), [1], keepdim=True)
+            neg_cent2 = torch.einsum("bdt, bds -> bts", -0.5 * (y_f**2), s_p_sq_r)
+            neg_cent3 = torch.einsum("bdt, bds -> bts", y_f, (mu_x_f * s_p_sq_r))
+            neg_cent4 = torch.sum(-0.5 * (mu_x_f**2) * s_p_sq_r, [1], keepdim=True)
             neg_cent = neg_cent1 + neg_cent2 + neg_cent3 + neg_cent4
 
             attn_mask = torch.unsqueeze(x_mask, 2) * torch.unsqueeze(y_mask, -1)
