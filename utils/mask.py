@@ -1,5 +1,6 @@
 import torch
 
+
 # copied from https://github.com/jaywalnut310/vits/blob/main/commons.py#L121
 def sequence_mask(length: torch.Tensor, max_length: int = None) -> torch.Tensor:
     if max_length is None:

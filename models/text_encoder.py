@@ -4,9 +4,21 @@ import torch.nn as nn
 from models.diffusion_transformer import DiTConVBlock
 from utils.mask import sequence_mask
 
+
 # modified from https://github.com/jaywalnut310/vits/blob/main/models.py
 class TextEncoder(nn.Module):
-    def __init__(self, n_vocab, out_channels, hidden_channels, filter_channels, n_heads, n_layers, kernel_size, p_dropout, gin_channels):
+    def __init__(
+        self,
+        n_vocab,
+        out_channels,
+        hidden_channels,
+        filter_channels,
+        n_heads,
+        n_layers,
+        kernel_size,
+        p_dropout,
+        gin_channels,
+    ):
         super().__init__()
         self.n_vocab = n_vocab
         self.out_channels = out_channels
@@ -16,17 +28,22 @@ class TextEncoder(nn.Module):
         self.n_layers = n_layers
         self.kernel_size = kernel_size
         self.p_dropout = p_dropout
-        
-        self.scale = self.hidden_channels ** 0.5
+
+        self.scale = self.hidden_channels**0.5
 
         self.emb = nn.Embedding(n_vocab, hidden_channels)
         nn.init.normal_(self.emb.weight, 0.0, hidden_channels**-0.5)
 
-        self.encoder = nn.ModuleList([DiTConVBlock(hidden_channels, filter_channels, n_heads, kernel_size, p_dropout, gin_channels) for _ in range(n_layers)])
+        self.encoder = nn.ModuleList(
+            [
+                DiTConVBlock(hidden_channels, filter_channels, n_heads, kernel_size, p_dropout, gin_channels)
+                for _ in range(n_layers)
+            ]
+        )
         self.proj = nn.Conv1d(hidden_channels, out_channels, 1)
-        
+
         self.initialize_weights()
-        
+
     def initialize_weights(self):
         for block in self.encoder:
             nn.init.constant_(block.adaLN_modulation[-1].weight, 0)

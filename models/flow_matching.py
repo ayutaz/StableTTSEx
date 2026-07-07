@@ -1,15 +1,27 @@
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
-
 import functools
+
+import torch
+import torch.nn.functional as F
 from torchdiffeq import odeint
 
 from models.estimator import Decoder
 
+
 # modified from https://github.com/shivammehta25/Matcha-TTS/blob/main/matcha/models/components/flow_matching.py
 class CFMDecoder(torch.nn.Module):
-    def __init__(self, noise_channels, cond_channels, hidden_channels, out_channels, filter_channels, n_heads, n_layers, kernel_size, p_dropout, gin_channels):
+    def __init__(
+        self,
+        noise_channels,
+        cond_channels,
+        hidden_channels,
+        out_channels,
+        filter_channels,
+        n_heads,
+        n_layers,
+        kernel_size,
+        p_dropout,
+        gin_channels,
+    ):
         super().__init__()
         self.noise_channels = noise_channels
         self.cond_channels = cond_channels
@@ -19,7 +31,18 @@ class CFMDecoder(torch.nn.Module):
         self.gin_channels = gin_channels
         self.sigma_min = 1e-4
 
-        self.estimator = Decoder(noise_channels, cond_channels, hidden_channels, out_channels, filter_channels, p_dropout, n_layers, n_heads, kernel_size, gin_channels)
+        self.estimator = Decoder(
+            noise_channels,
+            cond_channels,
+            hidden_channels,
+            out_channels,
+            filter_channels,
+            p_dropout,
+            n_layers,
+            n_heads,
+            kernel_size,
+            gin_channels,
+        )
 
     @torch.inference_mode()
     def forward(self, mu, mask, n_timesteps, temperature=1.0, c=None, solver=None, cfg_kwargs=None, sway_coef=None):
@@ -58,18 +81,18 @@ class CFMDecoder(torch.nn.Module):
             estimator = functools.partial(self.estimator, mask=mask, mu=mu, c=c)
         else:
             estimator = functools.partial(self.cfg_wrapper, mask=mask, mu=mu, c=c, cfg_kwargs=cfg_kwargs)
-            
+
         trajectory = odeint(estimator, z, t_span, method=solver, rtol=1e-5, atol=1e-5)
         return trajectory[-1]
-    
+
     # cfg inference
     def cfg_wrapper(self, t, x, mask, mu, c, cfg_kwargs):
-        cfg_strength = cfg_kwargs['cfg_strength']
-        cfg_interval = cfg_kwargs.get('cfg_interval')      # None or (t_min, t_max)
-        cfg_rescale = cfg_kwargs.get('cfg_rescale', 0.0)   # 0.0 = off (Lin+ 2023 arXiv:2305.08891 §3.4)
-        slg_scale = cfg_kwargs.get('slg_scale', 0.0)       # 0.0 = off (SD3.5 Skip Layer Guidance)
-        slg_layers = cfg_kwargs.get('slg_layers', (2,))
-        slg_t_range = cfg_kwargs.get('slg_t_range', (0.0, 0.5))
+        cfg_strength = cfg_kwargs["cfg_strength"]
+        cfg_interval = cfg_kwargs.get("cfg_interval")  # None or (t_min, t_max)
+        cfg_rescale = cfg_kwargs.get("cfg_rescale", 0.0)  # 0.0 = off (Lin+ 2023 arXiv:2305.08891 §3.4)
+        slg_scale = cfg_kwargs.get("slg_scale", 0.0)  # 0.0 = off (SD3.5 Skip Layer Guidance)
+        slg_layers = cfg_kwargs.get("slg_layers", (2,))
+        slg_t_range = cfg_kwargs.get("slg_t_range", (0.0, 0.5))
 
         cond_output = self.estimator(t, x, mask, mu, c)
         t_now = float(t)
@@ -77,8 +100,8 @@ class CFMDecoder(torch.nn.Module):
         output = cond_output
         # cfg_strength == 1.0 reduces to cond_output, so skip the uncond forward (also enables SLG-only inference at cfg=1.0)
         if cfg_strength != 1.0 and (cfg_interval is None or cfg_interval[0] <= t_now <= cfg_interval[1]):
-            fake_speaker = cfg_kwargs['fake_speaker'].repeat(x.size(0), 1)
-            fake_content = cfg_kwargs['fake_content'].repeat(x.size(0), 1, x.size(-1))
+            fake_speaker = cfg_kwargs["fake_speaker"].repeat(x.size(0), 1)
+            fake_content = cfg_kwargs["fake_content"].repeat(x.size(0), 1, x.size(-1))
             uncond_output = self.estimator(t, x, mask, fake_content, fake_speaker)
             output = uncond_output + cfg_strength * (cond_output - uncond_output)
             if cfg_rescale > 0.0:
@@ -114,12 +137,14 @@ class CFMDecoder(torch.nn.Module):
         # use cosine timestep scheduler from cosyvoice: https://github.com/FunAudioLLM/CosyVoice/blob/main/cosyvoice/flow/flow_matching.py
         t = torch.rand([b, 1, 1], device=mu.device, dtype=mu.dtype)
         t = 1 - torch.cos(t * 0.5 * torch.pi)
-        
+
         # sample noise p(x_0)
         z = torch.randn_like(x1)
 
         y = (1 - (1 - self.sigma_min) * t) * z + t * x1
         u = x1 - (1 - self.sigma_min) * z
 
-        loss = F.mse_loss(self.estimator(t.squeeze(), y, mask, mu, c), u, reduction="sum") / (torch.sum(mask) * u.size(1))
+        loss = F.mse_loss(self.estimator(t.squeeze(), y, mask, mu, c), u, reduction="sum") / (
+            torch.sum(mask) * u.size(1)
+        )
         return loss, y

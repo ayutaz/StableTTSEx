@@ -6,7 +6,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 StableTTSEx は [KdaiP/StableTTS](https://github.com/KdaiP/StableTTS) のフォーク（upstream v1.1 ベース）。flow-matching と DiT を組み合わせた軽量 TTS モデル（約31Mパラメータ）で、単一チェックポイントで中国語・英語・日本語に対応する。話者IDは使わず、reference encoder が参照音声から話者性を抽出するゼロショット方式。フォーク固有の変更は、日本語をデフォルトにする設定・`generate-audio-list.py`・uv による依存管理・日本語 g2p の pyopenjtalk-plus 化など小規模。
 
-テストやリンタの設定は存在しない。設定は CLI 引数ではなく、`config.py` や各スクリプト冒頭の dataclass を直接編集する方式。
+テストの設定は存在しない。設定は CLI 引数ではなく、`config.py` や各スクリプト冒頭の dataclass を直接編集する方式。
+
+リンタ／フォーマッタは ruff（`pyproject.toml` の `[tool.ruff]`）。`line-length=120`、ルールは `E/F/W/I/UP/B`（`E501` は formatter に委譲するため lint では無効、`UP031` は upstream g2p の `'%s' % x` 慣用のため許容）。**vendor 3rd-party（`text/cn2an`・`text/custom_pypinyin_dict`・`vocoders/{bigvgan,ffgan,vocos}`・`monotonic_align`）は `extend-exclude` で対象外**にしており、自分たちが著作しないコードは整形・lint しない。ruff は `[dependency-groups]` の `dev` グループにあり `uv sync` でデフォルト導入される。
 
 依存は uv（`pyproject.toml` + `uv.lock`）で管理する。Python は 3.13 固定（`.python-version`。上限 <3.14 は torch 2.8+cu128 と pyopenjtalk-plus に cp314 の Windows wheel が無いため）、numpy は `>=2.1,<2.5`（上限は numba 0.66 の numpy 対応上限。numba が numpy 2.5 に対応したら緩和可）。torch/torchaudio は 2.8 系 + cu128 を `[tool.uv.index]` / `[tool.uv.sources]` で自動解決する（別途インストール不要。torchaudio 2.9+ は load/save が TorchCodec 委譲になりコード非互換なので上げない）。
 
@@ -31,6 +33,10 @@ uv run python train.py
 
 # 学習ログ
 uv run tensorboard --logdir runs
+
+# コード品質（ruff。vendor コードは pyproject の extend-exclude で対象外）
+uv run ruff check              # lint（--fix で安全な自動修正を適用）
+uv run ruff format             # フォーマット（--check で差分の有無だけ確認）
 
 # 推論
 uv run python webui.py # Gradio WebUI（share=True で起動、デフォルト言語は日本語）

@@ -92,6 +92,7 @@ Notes:
 - The first sync downloads over 2.5GB of PyTorch CUDA wheels.
 - On Windows, stop running Python processes (webui, tensorboard, Jupyter) before `uv sync`, otherwise locked torch DLLs may fail to update.
 - On macOS, the CPU build of PyTorch is installed instead.
+- Linting/formatting uses [ruff](https://docs.astral.sh/ruff/) (installed by default via the `dev` group). Run `uv run ruff check` and `uv run ruff format`. Vendored third-party code (`text/cn2an`, `text/custom_pypinyin_dict`, `vocoders/{bigvgan,ffgan,vocos}`, `monotonic_align`) is excluded in `[tool.ruff]`.
 
 ## Inference
 

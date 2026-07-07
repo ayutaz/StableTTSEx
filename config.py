@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 
+
 @dataclass
 class MelConfig:
     sample_rate: int = 44100
@@ -13,11 +14,12 @@ class MelConfig:
     center: bool = False
     pad_mode: str = "reflect"
     mel_scale: str = "slaney"
-    
+
     def __post_init__(self):
         if self.pad == 0:
             self.pad = (self.n_fft - self.hop_length) // 2
-            
+
+
 @dataclass
 class ModelConfig:
     hidden_channels: int = 256
@@ -28,20 +30,22 @@ class ModelConfig:
     kernel_size: int = 3
     p_dropout: float = 0.1
     gin_channels: int = 256
-            
+
+
 @dataclass
 class TrainConfig:
-    train_dataset_path: str = 'filelists/filelist.json'
-    test_dataset_path: str = 'filelists/filelist.json' # not used
+    train_dataset_path: str = "filelists/filelist.json"
+    test_dataset_path: str = "filelists/filelist.json"  # not used
     batch_size: int = 32
     learning_rate: float = 1e-4
     num_epochs: int = 15
-    model_save_path: str = './checkpoints'
-    log_dir: str = './runs'
+    model_save_path: str = "./checkpoints"
+    log_dir: str = "./runs"
     log_interval: int = 16
     save_interval: int = 1
     warmup_steps: int = 200
-    
+
+
 @dataclass
 class VocosConfig:
     input_channels: int = 128

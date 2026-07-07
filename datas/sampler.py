@@ -1,5 +1,6 @@
 import torch
 
+
 # reference: https://github.com/jaywalnut310/vits/blob/main/data_utils.py
 class DistributedBucketSampler(torch.utils.data.distributed.DistributedSampler):
     """
@@ -40,7 +41,7 @@ class DistributedBucketSampler(torch.utils.data.distributed.DistributedSampler):
         # from https://github.com/Plachtaa/VITS-fast-fine-tuning/blob/main/data_utils.py
         # avoid "integer division or modulo by zero" error for very small dataset
         # see https://github.com/Plachtaa/VITS-fast-fine-tuning/pull/228 for more details
-        try: 
+        try:
             for i in range(len(buckets) - 1, 0, -1):
                 if len(buckets[i]) == 0:
                     buckets.pop(i)
@@ -48,7 +49,7 @@ class DistributedBucketSampler(torch.utils.data.distributed.DistributedSampler):
             assert all(len(bucket) > 0 for bucket in buckets)
         # When one bucket is not traversed
         except Exception as e:
-            print('Bucket warning ', e)
+            print("Bucket warning ", e)
             for i in range(len(buckets) - 1, -1, -1):
                 if len(buckets[i]) == 0:
                     buckets.pop(i)
@@ -58,9 +59,7 @@ class DistributedBucketSampler(torch.utils.data.distributed.DistributedSampler):
         for i in range(len(buckets)):
             len_bucket = len(buckets[i])
             total_batch_size = self.num_replicas * self.batch_size
-            rem = (
-                total_batch_size - (len_bucket % total_batch_size)
-            ) % total_batch_size
+            rem = (total_batch_size - (len_bucket % total_batch_size)) % total_batch_size
             num_samples_per_bucket.append(len_bucket + rem)
         return buckets, num_samples_per_bucket
 
@@ -86,23 +85,14 @@ class DistributedBucketSampler(torch.utils.data.distributed.DistributedSampler):
 
             # add extra samples to make it evenly divisible
             rem = num_samples_bucket - len_bucket
-            ids_bucket = (
-                ids_bucket
-                + ids_bucket * (rem // len_bucket)
-                + ids_bucket[: (rem % len_bucket)]
-            )
+            ids_bucket = ids_bucket + ids_bucket * (rem // len_bucket) + ids_bucket[: (rem % len_bucket)]
 
             # subsample
             ids_bucket = ids_bucket[self.rank :: self.num_replicas]
 
             # batching
             for j in range(len(ids_bucket) // self.batch_size):
-                batch = [
-                    bucket[idx]
-                    for idx in ids_bucket[
-                        j * self.batch_size : (j + 1) * self.batch_size
-                    ]
-                ]
+                batch = [bucket[idx] for idx in ids_bucket[j * self.batch_size : (j + 1) * self.batch_size]]
                 batches.append(batch)
 
         if self.shuffle:

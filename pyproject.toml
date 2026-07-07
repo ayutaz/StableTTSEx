@@ -44,6 +44,12 @@ recipes = [
     "pandas",   # recipes/VCTK_huggingface.py
 ]
 
+[dependency-groups]
+# 開発ツール（PEP 735。uv sync でデフォルト同期される）。ruff は lint と format を兼ねる
+dev = [
+    "ruff>=0.15,<0.16",
+]
+
 [tool.uv]
 # スクリプト集であり配布パッケージではないため、プロジェクト自身のビルドを無効化
 package = false
@@ -60,3 +66,32 @@ torch = [
 torchaudio = [
     { index = "pytorch-cu128", marker = "sys_platform == 'win32' or sys_platform == 'linux'" },
 ]
+
+[tool.ruff]
+line-length = 120
+target-version = "py313"
+# vendor / 3rd-party のコードは lint・format 対象外にして、自分たちが著作しない部分を churn させない:
+#   text/cn2an・text/custom_pypinyin_dict … 取り込んだ変換ライブラリ/拼音辞書（大半が自動生成データ）
+#   vocoders/bigvgan・vocoders/ffgan・vocoders/vocos … vendor したボコーダ実装
+#   monotonic_align … VITS 由来の MAS（numba JIT 実装）
+extend-exclude = [
+    "text/cn2an",
+    "text/custom_pypinyin_dict",
+    "vocoders/bigvgan",
+    "vocoders/ffgan",
+    "vocoders/vocos",
+    "monotonic_align",
+]
+
+[tool.ruff.lint]
+# E/W: pycodestyle, F: pyflakes, I: isort, UP: pyupgrade, B: flake8-bugbear
+select = ["E", "F", "W", "I", "UP", "B"]
+ignore = [
+    "E501",  # 行長は formatter に委譲（折返し不能な密な式・長い文字列が残り lint では潰せないため）
+    "UP031", # '%s' % x 形式。upstream 由来 g2p の正規表現組立て慣用で defect ではないため許容
+]
+
+[tool.ruff.lint.per-file-ignores]
+# upstream 由来の g2p フロントエンド。import 前にモジュールレベルの文字列/初期化があり順序に意図がある
+"text/english.py" = ["E402"]
+"text/mandarin.py" = ["E402"]
