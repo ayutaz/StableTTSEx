@@ -81,16 +81,18 @@ StableTTS は話者ベクトル（MelStyleEncoder 出力）が duration predicto
 - [x] TensorBoard ログは `runs_vast_run1/runs/` に回収（`uv run tensorboard --logdir runs_vast_run1/runs`）
 - 備考: 学習終了後に DDP プロセスが destroy_process_group でハングする（既知の挙動、成果物には無害）。監視スクリプトの scp は `-P`（大文字）が必要という教訓
 
-### M6: 評価
-- [ ] M4 と同一条件で再評価: 既存3評価セットの再生成、つくよみちゃん A/B（正解音声比較）、ホールドアウト話者ゼロショット
-- [ ] 定量: 話者類似度 cos-sim、UTMOS。エポック違いのチェックポイント数点を比較して最良を選定
-- 完了条件: §2 の成功基準4点の判定レポート
-- 成功基準を満たさない場合の分岐: データフィルタ見直し / epochs 追加 / B案（ゼロから・構成変更）の再検討
+### M6: 評価 ✅（2026-07-06 完了）
+- [x] M4 と同一条件で再評価: 既存3評価セットの再生成、つくよみちゃん A/B（正解音声比較）、ホールドアウト話者ゼロショット
+- [x] 定量: 話者類似度 cos-sim、UTMOS。エポック違いのチェックポイント数点を比較して最良を選定
+- 完了: §2 の成功基準は表現力・韻律・非劣化を達成、ゼロショット類似性は事前学習だけでは不足（fine-tune で解決）。詳細は [実行レポート](pretraining-report.md)
 
-### M7: 後続タスク（M6 の結果を見て判断）
-- [ ] つくよみちゃん fine-tune（100発話。事前学習後モデルがゼロショットで十分なら不要）
-- [ ] HF へのアップロード（gated 必須。§5 ライセンス参照）
-- [ ] README / CLAUDE.md にモデルカード相当の情報（データ・フィルタ条件・g2p 設定）を記録
+### M7: 後続タスク ✅（2026-07-06〜07 完了）
+- [x] つくよみちゃん fine-tune（100発話 → epoch 200 を採用: `checkpoints/tsukuyomi_ft200.pt`）
+- [x] HF へのアップロード（public 公開: [事前学習](https://huggingface.co/ayousanz/stable-tts-v1.1-japanese-378h) / [ft](https://huggingface.co/ayousanz/stable-tts-v1.1-japanese-378h-tsukuyomi-ft) / [baseline](https://huggingface.co/ayousanz/stable-tts-v1.1-tsukuyomi-ft-baseline)。license: other / moe-speech-terms）
+- [x] README / CLAUDE.md にモデルカード相当の情報（データ・フィルタ条件・g2p 設定）を記録
+
+### 研究フェーズ（2026-07-06〜、事前学習の後続）
+事前学習完了後、アーキテクチャ改善の調査を [architecture-improvement-research.md](architecture-improvement-research.md) にまとめ、Phase 1（再学習不要の推論改善）を実装・評価済み。成果は Sway Sampling（低ステップで dopri5 品質・約10倍高速）と CFG rescale（飽和抑制）で、webui 既定に採用。ボコーダは BigVGAN v2（MIT）を追加。次は Phase 2（logit-normal timestep + EMA での再事前学習）を検討。
 
 ## 5. 懸念事項とリスク
 

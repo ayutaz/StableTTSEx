@@ -19,6 +19,9 @@ As the first open-source TTS model that tried to combine flow-matching and DiT, 
 - Japanese g2p uses [pyopenjtalk-plus](https://github.com/tsukumijima/pyopenjtalk-plus) (maintained fork of pyopenjtalk with a bundled dictionary — no runtime download). `extract_fullcontext` is called with `use_vanilla=False` to enable the improved reading corrections of pyopenjtalk-plus; this matches the Japanese pretraining plan in `docs/pretraining-plan.md`. Set it back to `True` only when strictly reproducing the upstream `checkpoint_0.pt` behavior.
 - `generate-audio-list.py` converts a Style-Bert-VITS2 style `esd.list` (`file|speaker|lang|text`) into the `filelist.txt` used by preprocessing.
 - Dependencies are managed with [uv](https://docs.astral.sh/uv/) (`pyproject.toml` + `uv.lock`). Python is pinned to 3.13 and CUDA-enabled PyTorch (2.8 + cu128) is resolved automatically — no manual PyTorch installation needed.
+- **Japanese-specialized checkpoints** trained on moe-speech (378h continued pretraining) and a Tsukuyomi-chan fine-tune are published (see [Japanese models](#japanese-models-this-fork)). Details in `docs/pretraining-report.md`.
+- **Inference improvements** (opt-in, default-off, checkpoint-compatible): Sway Sampling (`sway_coef`), CFG rescale (`cfg_rescale`), interval CFG (`cfg_interval`) and multi-reference averaging (`ref_window_seconds`). Recommended fixed-step preset: `solver='euler', step=16, sway_coef=-1.0, cfg_rescale=0.7` — matches `dopri5`/25-step quality at ~10x speed. See `docs/architecture-improvement-research.md`.
+- **BigVGAN v2 vocoder (MIT)** is vendored under `vocoders/bigvgan/` as a non-commercial-license-free alternative to FireflyGAN; select it with `'bigvgan'` in `get_vocoder`.
 
 ## News
 
@@ -51,12 +54,26 @@ Download and place the model in the `./checkpoints` directory, it is ready for i
 
 ### Mel-To-Wav model
 
-Choose a vocoder (`vocos` or `firefly-gan` ) and place it in the `./vocoders/pretrained` directory.
+Choose a vocoder (`vocos`, `firefly-gan`, or `bigvgan`) and place it in the `./vocoders/pretrained` directory. All three share the same mel spec (44.1kHz / 128 mel / slaney) and are interchangeable.
 
-| Model Name | Task Details | Dataset | Download Link |
-|:----------:|:------------:|:-------------:|:-------------:|
-| Vocos | mel to wav | 2k hours | [🤗](https://huggingface.co/KdaiP/StableTTS1.1/resolve/main/vocoders/vocos.pt)|
-| firefly-gan-base | mel to wav | HiFi-16kh | [download from fishaudio](https://github.com/fishaudio/vocoder/releases/download/1.0.0/firefly-gan-base-generator.ckpt)|
+| Model Name | Task Details | Dataset | License | Download Link |
+|:----------:|:------------:|:-------------:|:-------------:|:-------------:|
+| Vocos | mel to wav | 2k hours | MIT | [🤗](https://huggingface.co/KdaiP/StableTTS1.1/resolve/main/vocoders/vocos.pt)|
+| firefly-gan-base | mel to wav | HiFi-16kh | CC-BY-NC-SA (non-commercial) | [download from fishaudio](https://github.com/fishaudio/vocoder/releases/download/1.0.0/firefly-gan-base-generator.ckpt)|
+| BigVGAN v2 (44kHz/128band) | mel to wav | — | MIT | [🤗](https://huggingface.co/nvidia/bigvgan_v2_44khz_128band_512x/resolve/main/bigvgan_generator.pt)|
+
+<a id="japanese-models-this-fork"></a>
+### Japanese models (this fork)
+
+Japanese-specialized checkpoints trained on the moe-speech corpus. Place under `./checkpoints`. Usage details, recommended inference settings, and samples are on each model card.
+
+| Model | Details | 🤗 |
+|:------|:--------|:--:|
+| stable-tts-v1.1-japanese-378h | checkpoint_0.pt からの日本語 378h 継続事前学習（表現力・韻律が向上、v1.1 と互換） | [🤗](https://huggingface.co/ayousanz/stable-tts-v1.1-japanese-378h) |
+| stable-tts-v1.1-japanese-378h-tsukuyomi-ft | 上記を初期値につくよみちゃんコーパスで fine-tune（採用: ep200） | [🤗](https://huggingface.co/ayousanz/stable-tts-v1.1-japanese-378h-tsukuyomi-ft) |
+| stable-tts-v1.1-tsukuyomi-ft-baseline | 本家 v1.1 を直接 fine-tune した比較用ベースライン | [🤗](https://huggingface.co/ayousanz/stable-tts-v1.1-tsukuyomi-ft-baseline) |
+
+4モデル比較デモ動画: https://youtu.be/0MiEmVuJ2Fw
 
 ## Installation
 
