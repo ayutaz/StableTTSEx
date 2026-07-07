@@ -44,13 +44,15 @@ class TrainConfig:
     log_interval: int = 16
     save_interval: int = 1
     warmup_steps: int = 200
-    # Phase 2 施策5: 学習時 timestep サンプリング。"cosine" = 既存 CosyVoice スケジューラ（既定・ビット不変）、
-    # "logit_normal" = SD3 式 logit-normal(m, s)（中間 t 重点）
-    timestep_sampling: str = "cosine"
+    # Phase 2 施策5: 学習時 timestep サンプリング。"cosine" = 既存 CosyVoice スケジューラ（ビット不変）、
+    # "logit_normal" = SD3 式 logit-normal(m, s)（中間 t 重点）。R2 ラン: logit_normal
+    # 注: このリポジトリの t 規約は SD3 と逆（t=0→noise, t=1→data）。m=0 は対称なので影響なし。
+    # m≠0 で調整する際は SD3 の符号を反転させること
+    timestep_sampling: str = "logit_normal"
     logit_normal_m: float = 0.0
     logit_normal_s: float = 1.0
-    # Phase 2 施策6: EMA 重み。use_ema=False で既存挙動。decay は warmup 付き上限（utils/ema.py 参照）
-    use_ema: bool = False
+    # Phase 2 施策6: EMA 重み。use_ema=False で既存挙動。decay は warmup 付き上限（utils/ema.py 参照）。R2 ラン: True
+    use_ema: bool = True
     ema_decay: float = 0.9995
     ema_warmup: int = 10
 

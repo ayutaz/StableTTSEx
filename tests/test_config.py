@@ -1,5 +1,8 @@
 """config.py の不変条件。MelConfig/ModelConfig の値は既存チェックポイント互換の前提であり、
-壊れると静かに非互換になる。TrainConfig の Phase 2 既定は「既存挙動をビット維持」の前提。
+壊れると静かに非互換になる。TrainConfig は「次に回す学習ランの設定」で、現在は Phase 2 R2
+（logit_normal + EMA）を選択している。チェックポイント互換のビット不変性の本質はモデル層
+（CFMDecoder/StableTTS の kwargs 既定 = cosine/off、推論は asdict(ModelConfig) 経由で不変）
+にあり、test_model.py / test_flow_matching.py が担保する。
 """
 
 from config import MelConfig, ModelConfig, TrainConfig
@@ -33,10 +36,12 @@ def test_model_config_architecture_constants():
     assert c.n_dec_layers % 2 == 0
 
 
-def test_train_config_phase2_defaults_preserve_behavior():
+def test_train_config_phase2_r2_recipe():
     t = TrainConfig()
-    # 既定は既存挙動（cosine スケジューラ・EMA なし）をビット維持する
-    assert t.timestep_sampling == "cosine"
+    # 現在の学習設定は Phase 2 R2: logit_normal timestep + EMA
+    assert t.timestep_sampling in ("cosine", "logit_normal")
+    assert t.timestep_sampling == "logit_normal"
+    # m=0 は t 規約が SD3 と逆でも対称（中間 t 重点のみ効かせる）。s は標準
     assert (t.logit_normal_m, t.logit_normal_s) == (0.0, 1.0)
-    assert t.use_ema is False
+    assert t.use_ema is True
     assert (t.ema_decay, t.ema_warmup) == (0.9995, 10)
