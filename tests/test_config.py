@@ -36,17 +36,16 @@ def test_model_config_architecture_constants():
     assert c.n_dec_layers % 2 == 0
 
 
-def test_train_config_phase3_mrte_recipe():
+def test_phase3_closed_config_is_inference_safe():
     t = TrainConfig()
     m = ModelConfig()
-    # 現在の学習設定は Phase 3 第二弾 = MRTE（cosine + EMA無 + TLA-SA off + 参照 cross-attention）。
-    # baseline japanese-378h(cosine) と揃え、MRTE 単独の効果を切り分ける
+    # Phase 3 はクローズ（Phase 2/3-1/3-2 いずれも話者類似性を改善できず不採用、docs/phase3-plan.md §13）。
+    # 推論・webui が既存チェックポイントを strict ロードできるよう、アーキ変更フラグは全て off に戻してある
+    assert m.use_mrte is False  # MRTE off = param 31,644,545・state_dict キー不変
+    assert t.use_tla_sa is False  # TLA-SA off = state_dict 不変
+    # 学習レシピは baseline 相当（cosine / EMA無 / logit_normal は Phase 2 で不採用）
     assert t.timestep_sampling == "cosine"
     assert t.use_ema is False
-    assert t.use_tla_sa is False  # 第二弾は MRTE 単独（TLA-SA は WavLM 教師で不発）
-    # MRTE 有効はアーキ設定なので ModelConfig 側。出力は vast_run4 に隔離
-    assert m.use_mrte is True
-    assert t.model_save_path == "./checkpoints/vast_run4"
     # Tier 1/2 学習最適化は据え置き（数値精度のみ変わり、チェックポイント形式・n_vocab・推論経路は不変）
     assert t.use_amp is True
     assert t.grad_clip == 1.0

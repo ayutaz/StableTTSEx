@@ -34,8 +34,10 @@ class ModelConfig:
     # 完全一致（param 数 31,644,545 不変）。True で state_dict にキーが増える（=既存チェックポイントとは
     # strict=False 部分ロード + zero-init ゲートで初期挙動一致 → 継続学習）。ModelConfig 側に置くのは
     # チェックポイント構造を変えるアーキ設定だから（TLA-SA は state_dict 不変なので TrainConfig）。
-    # Phase 3 第二弾 MRTE ラン: True
-    use_mrte: bool = True
+    # Phase 3 はクローズ（MRTE は spk_cos −0.007 で不採用、docs/phase3-plan.md §13）。False に戻して
+    # 既存チェックポイント（tsukuyomi_ft200.pt 等）が api.py/webui.py で strict ロードできる状態を保つ。
+    # MRTE をスクラッチ学習等で再評価する際に True にする
+    use_mrte: bool = False
 
 
 @dataclass
