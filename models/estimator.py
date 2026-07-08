@@ -10,15 +10,25 @@ class DitWrapper(nn.Module):
     """add FiLM layer to condition time embedding to DiT"""
 
     def __init__(
-        self, hidden_channels, filter_channels, num_heads, kernel_size=3, p_dropout=0.1, gin_channels=0, time_channels=0
+        self,
+        hidden_channels,
+        filter_channels,
+        num_heads,
+        kernel_size=3,
+        p_dropout=0.1,
+        gin_channels=0,
+        time_channels=0,
+        use_cross_attn=False,
     ):
         super().__init__()
         self.time_fusion = FiLMLayer(hidden_channels, time_channels)
-        self.block = DiTConVBlock(hidden_channels, filter_channels, num_heads, kernel_size, p_dropout, gin_channels)
+        self.block = DiTConVBlock(
+            hidden_channels, filter_channels, num_heads, kernel_size, p_dropout, gin_channels, use_cross_attn
+        )
 
-    def forward(self, x, c, t, x_mask):
+    def forward(self, x, c, t, x_mask, ref_seq=None, ref_mask=None):
         x = self.time_fusion(x, t) * x_mask
-        x = self.block(x, c, x_mask)
+        x = self.block(x, c, x_mask, ref_seq, ref_mask)
         return x
 
 
@@ -83,6 +93,7 @@ class Decoder(nn.Module):
         kernel_size=3,
         gin_channels=0,
         use_lsc=True,
+        use_mrte=False,
     ):
         super().__init__()
         self.noise_channels = noise_channels
@@ -101,7 +112,14 @@ class Decoder(nn.Module):
         self.blocks = nn.ModuleList(
             [
                 DitWrapper(
-                    hidden_channels, filter_channels, n_heads, kernel_size, dropout, gin_channels, hidden_channels
+                    hidden_channels,
+                    filter_channels,
+                    n_heads,
+                    kernel_size,
+                    dropout,
+                    gin_channels,
+                    hidden_channels,
+                    use_cross_attn=use_mrte,
                 )
                 for _ in range(n_layers)
             ]
@@ -134,7 +152,7 @@ class Decoder(nn.Module):
             nn.init.constant_(block.block.adaLN_modulation[-1].weight, 0)
             nn.init.constant_(block.block.adaLN_modulation[-1].bias, 0)
 
-    def forward(self, t, x, mask, mu, c, skip_layers=None, return_hidden=False):
+    def forward(self, t, x, mask, mu, c, skip_layers=None, return_hidden=False, ref_seq=None, ref_mask=None):
         """Forward pass of the DiT model.
 
         Args:
@@ -150,6 +168,9 @@ class Decoder(nn.Module):
                 (which stays None during training), so hidden_list always has n_dec_layers
                 entries. Inference never passes this, so the default path (return_hidden=False)
                 is byte-identical to before.
+            ref_seq (optional): MRTE reference mel sequence, shape (batch_size, gin_channels, T_ref).
+                None disables cross-attention (byte-identical when use_mrte=False or ref_seq=None).
+            ref_mask (optional): reference validity mask, shape (batch_size, 1, T_ref).
 
         Returns:
             output, or (output, hidden_list) when return_hidden=True
@@ -175,7 +196,7 @@ class Decoder(nn.Module):
 
             if skip_layers is not None and idx in skip_layers:
                 continue
-            x = block(x, c, t, mask)
+            x = block(x, c, t, mask, ref_seq, ref_mask)
             if return_hidden:
                 hidden_list.append(x)
 

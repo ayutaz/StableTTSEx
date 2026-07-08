@@ -50,6 +50,7 @@ class StableTTS(nn.Module):
         logit_normal_s=1.0,
         use_gpu_mas=False,
         use_tla_sa=False,
+        use_mrte=False,
     ):
         super().__init__()
 
@@ -60,6 +61,9 @@ class StableTTS(nn.Module):
         # Phase 3 TLA-SA: plain 属性のみ（submodule/Parameter を足さない）。True で forward が中間表現を返す
         # 経路を有効化する。損失を計算する TLASAHead は train.py 側の独立モジュールなので state_dict は不変
         self.use_tla_sa = use_tla_sa
+        # Phase 3 MRTE: 参照 mel 系列への cross-attention。True で decoder に cross-attn モジュールが増える
+        # （＝state_dict にキー追加。既定 False では一切足さず param 数不変）。fake_ref は CFG uncond 用の null 参照
+        self.use_mrte = use_mrte
 
         self.encoder = TextEncoder(
             n_vocab,
@@ -90,11 +94,15 @@ class StableTTS(nn.Module):
             timestep_sampling=timestep_sampling,
             logit_normal_m=logit_normal_m,
             logit_normal_s=logit_normal_s,
+            use_mrte=use_mrte,
         )
 
         # uncondition input for cfg
         self.fake_speaker = nn.Parameter(torch.zeros(1, gin_channels))
         self.fake_content = nn.Parameter(torch.zeros(1, mel_channels, 1))
+        # MRTE の CFG uncond 用 null 参照系列（use_mrte 時のみ生成＝off で param 不変）
+        if use_mrte:
+            self.fake_ref = nn.Parameter(torch.zeros(1, gin_channels, 1))
 
         self.cfg_dropout = 0.2
 
@@ -154,8 +162,14 @@ class StableTTS(nn.Module):
         """
 
         # Get encoder_outputs `mu_x` and log-scaled token durations `logw`
+        # MRTE: c 未指定かつ use_mrte なら参照系列も抽出（B=1 全 valid なので ref_mask=None）。
+        # c を渡された場合（api.get_style_vector の window/list 経路）は ref_seq=None で MRTE 不活性（pooled fallback）
+        ref_seq = ref_mask = None
         if c is None:
-            c = self.ref_encoder(y, None)
+            if self.use_mrte:
+                c, ref_seq = self.ref_encoder(y, None, return_sequence=True)
+            else:
+                c = self.ref_encoder(y, None)
         x, mu_x, x_mask = self.encoder(x, c, x_lengths)
         logw = self.dp(x, x_mask, c)
 
@@ -177,7 +191,17 @@ class StableTTS(nn.Module):
         # Generate sample tracing the probability flow
         # SLG is independent of CFG, so route through cfg_wrapper whenever either is active
         if cfg == 1.0 and slg_scale == 0.0:
-            decoder_outputs = self.decoder(mu_y, y_mask, n_timesteps, temperature, c, solver, sway_coef=sway_coef)
+            decoder_outputs = self.decoder(
+                mu_y,
+                y_mask,
+                n_timesteps,
+                temperature,
+                c,
+                solver,
+                sway_coef=sway_coef,
+                ref_seq=ref_seq,
+                ref_mask=ref_mask,
+            )
         else:
             cfg_kwargs = {
                 "fake_speaker": self.fake_speaker,
@@ -188,9 +212,20 @@ class StableTTS(nn.Module):
                 "slg_scale": slg_scale,
                 "slg_layers": slg_layers,
                 "slg_t_range": slg_t_range,
+                # MRTE: uncond 側で参照系列を落とすための null 参照（use_mrte 時のみ存在）
+                "fake_ref": self.fake_ref if self.use_mrte else None,
             }
             decoder_outputs = self.decoder(
-                mu_y, y_mask, n_timesteps, temperature, c, solver, cfg_kwargs, sway_coef=sway_coef
+                mu_y,
+                y_mask,
+                n_timesteps,
+                temperature,
+                c,
+                solver,
+                cfg_kwargs,
+                sway_coef=sway_coef,
+                ref_seq=ref_seq,
+                ref_mask=ref_mask,
             )
 
         decoder_outputs = decoder_outputs[:, :, :y_max_length]
@@ -227,8 +262,12 @@ class StableTTS(nn.Module):
         z_mask = sequence_mask(z_lengths, z.size(2)).unsqueeze(1).to(z.dtype)
         cfg_mask = torch.rand(y.size(0), 1, device=y.device) > self.cfg_dropout
 
-        # compute global speaker embedding
-        c = self.ref_encoder(z, z_mask) * cfg_mask + ~cfg_mask * self.fake_speaker.repeat(z.size(0), 1)
+        # compute global speaker embedding（MRTE 時は pool 前の参照系列も取得）
+        if self.use_mrte:
+            c_raw, ref_seq = self.ref_encoder(z, z_mask, return_sequence=True)
+        else:
+            c_raw, ref_seq = self.ref_encoder(z, z_mask), None
+        c = c_raw * cfg_mask + ~cfg_mask * self.fake_speaker.repeat(z.size(0), 1)
 
         x, mu_x, x_mask = self.encoder(x, c, x_lengths)
         logw = self.dp(x, x_mask, c)
@@ -270,12 +309,23 @@ class StableTTS(nn.Module):
         mu_y_masked = mu_y * cfg_mask + ~cfg_mask * self.fake_content.repeat(
             mu_y.size(0), 1, mu_y.size(-1)
         )  # mask content information for better diversity for flow-matching
+        # MRTE: 参照系列も同一 cfg_mask で drop（uncond サンプルは fake_ref に）。ref_mask は z_mask。
+        # cross-attn は毎ステップ計算＝static_graph 安全（drop はマスク乗算で表現し構造スキップしない）
+        ref_mask = None
+        if self.use_mrte:
+            keep = cfg_mask  # [B, 1, 1]
+            ref_seq = ref_seq * keep + ~keep * self.fake_ref
+            ref_mask = z_mask
+        else:
+            ref_seq = None
         if return_tla:
             # TLA-SA（学習時のみ）: デコーダ中間表現と timestep を取り出して補助話者整列損失（train.py の
             # TLASAHead）に渡す。valid=cfg_mask で cfg ドロップ（c=fake_speaker）サンプルを整列対象から除外する
-            diff_loss, _, dec_hiddens, t_used = self.decoder.compute_loss(y, y_mask, mu_y_masked, c, return_hidden=True)
+            diff_loss, _, dec_hiddens, t_used = self.decoder.compute_loss(
+                y, y_mask, mu_y_masked, c, return_hidden=True, ref_seq=ref_seq, ref_mask=ref_mask
+            )
         else:
-            diff_loss, _ = self.decoder.compute_loss(y, y_mask, mu_y_masked, c)
+            diff_loss, _ = self.decoder.compute_loss(y, y_mask, mu_y_masked, c, ref_seq=ref_seq, ref_mask=ref_mask)
 
         prior_loss = torch.sum(0.5 * ((y - mu_y) ** 2 + math.log(2 * math.pi)) * y_mask)
         prior_loss = prior_loss / (torch.sum(y_mask) * self.mel_channels)

@@ -30,6 +30,11 @@ class ModelConfig:
     kernel_size: int = 3
     p_dropout: float = 0.1
     gin_channels: int = 256
+    # Phase 3 MRTE: 参照 mel 系列への cross-attention（デコーダに cross-attn を追加）。既定 False で現行と
+    # 完全一致（param 数 31,644,545 不変）。True で state_dict にキーが増える（=既存チェックポイントとは
+    # strict=False 部分ロード + zero-init ゲートで初期挙動一致 → 継続学習）。ModelConfig 側に置くのは
+    # チェックポイント構造を変えるアーキ設定だから（TLA-SA は state_dict 不変なので TrainConfig）
+    use_mrte: bool = False
 
 
 @dataclass
@@ -50,7 +55,7 @@ class TrainConfig:
     warmup_steps: int = 200
     # Phase 2 施策5: 学習時 timestep サンプリング。"cosine" = 既存 CosyVoice スケジューラ（ビット不変）、
     # "logit_normal" = SD3 式 logit-normal(m, s)（中間 t 重点）。Phase 3 TLA-SA ラン: cosine
-    #（logit_normal は Phase 2 で不採用。baseline japanese-378h=cosine と揃え TLA-SA の効果だけを切り分ける）
+    # （logit_normal は Phase 2 で不採用。baseline japanese-378h=cosine と揃え TLA-SA の効果だけを切り分ける）
     timestep_sampling: str = "cosine"
     logit_normal_m: float = 0.0
     logit_normal_s: float = 1.0

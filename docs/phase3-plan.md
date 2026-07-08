@@ -106,6 +106,69 @@ REPA（画像 DiT で収束加速、[2410.06940](https://arxiv.org/abs/2410.0694
 2. TLA-SA の実装詳細を詰める: 教師 SV エンコーダの選定（WavLM-sv vs CAM++）、中間表現の露出方法、ヘッド構造、教師埋め込みの対象（z スライス vs 全体）。
 3. 実装 → 部分ロード継続学習（vast）→ dopri25 A/B（+参照長スイープ）→ 採否判定 → 必要なら第二弾 MRTE。
 
+## 11. 第一弾 TLA-SA 実施結果（2026-07-08）— 主目標未達、第二弾 MRTE へ
+
+WavLM-sv 教師で TLA-SA を実装・学習・評価した。**結論: 話者類似性は改善せず（spk_cos −0.009）。第二弾 MRTE へ進む。**
+
+### 実装・学習
+
+設計調査ワークフロー（GO_WITH_CONDITIONS）+ 実装レビュー（low 3件修正）で確定した設計を実装（§5）。教師=WavLM-base-plus-sv（512次元、vendor 不要）、upstream `checkpoint_0` から 15 epochs / cosine / EMA無（baseline japanese-378h と同条件で TLA-SA 有無だけを差にする）。教師埋め込みは `precompute_spk_emb.py` で 235,095 サンプル全てをオフライン事前計算。vast 2×RTX5090、実測 ~2.5h。成果物 `checkpoints/vast_run3/`。
+
+学習は健全に完走: `tla_sa_loss` は 0.97 → ~0（ヘッドが整列を達成）、主タスク損失（diff/dur/prior）は baseline と同レンジで安定（λ=0.5 は過大でない）。
+
+### 評価（dopri25 A/B、n=15）
+
+| model | CER | spk_cos | mel_std | peak |
+|---|---|---|---|---|
+| baseline（既存378h） | 0.0013 | **0.6502** | 2.590 | 0.823 |
+| tla_sa | 0.0199 | 0.6408 | 2.577 | 0.817 |
+
+**spk_cos 差 = −0.009（目標 +0.03 に対し改善せず、むしろ微減）。CER も 0.001→0.020 と微悪化。** 話者別・文別でも改善は一貫しない。参照長スイープは win2 で tla_sa 0.652 > baseline 0.640（+0.012）と弱い兆候のみ（誤差レベル）。スクリプト・数値は `temps/phase3_eval/`（`eval_phase3_tla.py`, `results_tla.json`, `agg_tla.py`）。
+
+### 解釈
+
+- `tla_sa_loss` が ~0 に張り付いた ＝ **層別 projection head の表現力が十分で、デコーダ本体を弱くしか使わずに整列を達成できてしまった**。REPA が狙う「デコーダ本体への話者情報の押し込み」が起きず、下流 spk_cos に転移しなかった。
+- WavLM は英語話者検証モデルで、**日本語話者への転移が弱い**（arXiv:2506.20190 の「事前学習埋め込みの転移は限定的」とも整合）。
+
+### 判断
+
+CAM++ 教師への差し替えや λ 増強も選択肢だが、TLA-SA は「補助損失で症状を教師付けする」間接策で上限が低い。**pooling ボトルネックを構造的に解消する第二弾 MRTE（§6）へ進む**（ユーザー決定 2026-07-08）。TLA-SA の実装（config フラグ・tla_sa.py・precompute）は残置（既定 False でビット一致、将来 CAM++ で再評価可能）。
+
+---
+
+## 12. 第二弾 MRTE 実装状況（2026-07-08）— 実装完了・学習前
+
+設計調査ワークフロー（GO_WITH_CONDITIONS）+ 実装レビュー（confirmed 1件=CFG 経路テスト追加で対応）で、参照 mel 系列への cross-attention を実装した。**まだ学習・評価は未実施。**
+
+### 実装（Stage A/B/C 完了、97テスト通過・ruff clean）
+
+- **Stage A** `models/reference_encoder.py`: `MelStyleEncoder.forward(return_sequence=True)` で pool 前系列 `[B,gin,T_ref]` を返す（param 0、既定 byte-identical）。
+- **Stage B** MRTE 本体:
+  - `models/diffusion_transformer.py`: 新クラス `CrossAttention`（RoPE 無し、query=noisy mel hidden、key/value=参照 mel 系列、ref_mask を additive mask 化）。`DiTConVBlock` に `use_cross_attn` を追加し、True 時のみ `norm_cross`（0 param）・`cross_attn`・`cross_gate=Parameter(zeros(1,hidden,1))` を生成。self-attn 後・FFN 前に `x = x + cross_gate * cross_attn(norm_cross(x), ref_seq, ref_mask) * x_mask` を挿入。**cross_gate は zero-init**（conv_o は非 zero-init でゲート勾配を確保）。
+  - `models/estimator.py` / `models/flow_matching.py`: `use_mrte` と `ref_seq`/`ref_mask` を全経路に透過。`cfg_wrapper` の uncond は `fake_ref`（null 参照）に落として CFG が話者を誘導。
+  - `models/model.py`: `use_mrte`・`fake_ref`（use_mrte 時のみ生成）。学習 forward で参照系列を同一 `cfg_mask` で drop、`synthesise` で c 未指定時に参照系列を抽出。
+  - `config.py`: **`ModelConfig.use_mrte: bool = False`**（TLA-SA と違い state_dict にキーが増えるアーキ設定）。
+- **Stage C** `utils/load.py`: pretrained ブートストラップを strict=False 化（legacy checkpoint → MRTE モデルの部分ロード入口。missing/unexpected をログ）。本 resume は strict=True 据置。
+
+### 保証された不変条件（テストで固定）
+
+- `use_mrte=False`: state_dict キー・**param 数 31,644,545 不変**（現行完全維持）。
+- `use_mrte=True`: full config **param 数 33,225,345**（+1,580,800）。
+- **zero-init ゲートで baseline 重みを strict=False 部分ロード後の synthesise 出力が baseline と byte-identical**（cfg=1.0 直行経路・cfg=3.0 の CFG 経路の両方でテスト）。
+- 配線ガード: cross_gate を非零にすると出力が変わる。
+
+### 次アクション
+
+`ModelConfig.use_mrte=True` に設定 → 既存 japanese-378h（vast の `checkpoints/checkpoint_14.pt`）から strict=False 部分ロードで継続学習（15ep、cosine、EMA無、TLA-SA off）→ dopri25 A/B（+参照長スイープ、MRTE は長参照で伸びる想定）→ 採否判定。**Stage D（複数参照 `get_reference_mel`）は第一版では未実装＝window/list 経路は pooled fallback**（長参照×MRTE を本格活用する場合の別フォローアップ）。
+
+### 学習前の留意（open risk）
+
+- 二重条件付け（pooled c + 系列 cross-attn）で内容・韻律リーク→CER 悪化の可能性（fake_ref CFG drop で緩和、効果不足なら pooled を段階的に外す）。
+- 学習参照 z（random_slice の短スライス）が推論の長参照と長さ非対称。z が数フレームに退化すると MRTE の旨味が減る。
+- cross_gate の立ち上がりを TensorBoard で監視（開かない兆候なら conv_o 小スケール init へ、ただし byte-identity は失う）。
+
+---
+
 ## 10. 主要出典
 
 - TLA-SA: https://arxiv.org/html/2511.09995 / REPA（系譜）: https://arxiv.org/abs/2410.06940

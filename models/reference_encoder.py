@@ -68,7 +68,16 @@ class MelStyleEncoder(nn.Module):
         else:
             return torch.sum(x * ~mask.unsqueeze(-1), dim=1) / (~mask).sum(dim=1).unsqueeze(1)
 
-    def forward(self, x, x_mask=None):
+    def forward(self, x, x_mask=None, return_sequence=False):
+        """
+        Args:
+            x: reference mel, shape [B, n_mel, T_ref]
+            x_mask: [B, 1, T_ref]（1=valid）。None なら全 valid
+            return_sequence: True で pooled c に加え pool 前の系列表現を返す（Phase 3 MRTE 用）
+        Returns:
+            return_sequence=False: pooled style vector w, shape [B, gin]（現行と byte-identical）
+            return_sequence=True: (w[B, gin], ref_seq[B, gin, T_ref])
+        """
         x = x.transpose(1, 2)
 
         # spectral
@@ -82,10 +91,13 @@ class MelStyleEncoder(nn.Module):
             x_mask = ~x_mask.squeeze(1).to(torch.bool)
         x, _ = self.slf_attn(x, x, x, key_padding_mask=x_mask, need_weights=False)
         # fc
-        x = self.fc(x)
+        x = self.fc(x)  # [B, T_ref, gin]
         # temoral average pooling
-        w = self.temporal_avg_pool(x, mask=x_mask)
+        w = self.temporal_avg_pool(x, mask=x_mask)  # [B, gin]（pooled c、CFG/global 用）
 
+        if return_sequence:
+            # MRTE の cross-attention 用に pool 前の系列を channel-first で返す（Conv1d 規約に統一）
+            return w, x.transpose(1, 2)  # (w=[B,gin], ref_seq=[B,gin,T_ref])
         return w
 
 

@@ -83,13 +83,65 @@ class MultiHeadAttention(nn.Module):
         return output
 
 
+class CrossAttention(nn.Module):
+    """Cross-attention for MRTE (Phase 3): query=noisy mel hidden, key/value=参照 mel 系列。
+
+    self-attention（MultiHeadAttention）と違い RoPE は掛けない。query の目標時間軸と参照の時間軸は
+    無関係で、相対位置回転は誤アラインメントの事前分布になるため。テンソルは channel-first で統一。
+    """
+
+    def __init__(self, hidden_channels, ref_channels, n_heads, p_dropout=0.0):
+        super().__init__()
+        assert hidden_channels % n_heads == 0
+        self.n_heads = n_heads
+        self.k_channels = hidden_channels // n_heads
+        self.p_dropout = p_dropout
+        self.conv_q = nn.Conv1d(hidden_channels, hidden_channels, 1)
+        self.conv_k = nn.Conv1d(ref_channels, hidden_channels, 1)  # ref(gin) -> hidden
+        self.conv_v = nn.Conv1d(ref_channels, hidden_channels, 1)
+        self.conv_o = nn.Conv1d(hidden_channels, hidden_channels, 1)
+        for c in (self.conv_q, self.conv_k, self.conv_v):
+            nn.init.xavier_uniform_(c.weight)
+        # conv_o は zero-init しない（それをすると cross_gate への勾配が殺され立ち上がらない。
+        # 初期の出力無効化は DiTConVBlock 側の cross_gate=0 が担う）
+
+    def forward(self, x, ref, ref_mask=None):
+        # x: [B, hidden, T], ref: [B, ref_channels, S], ref_mask: [B, 1, S]（1=valid）
+        q, k, v = self.conv_q(x), self.conv_k(ref), self.conv_v(ref)
+        b, d, t = q.shape
+        s = k.size(2)
+        q = q.view(b, self.n_heads, self.k_channels, t).transpose(2, 3)
+        k = k.view(b, self.n_heads, self.k_channels, s).transpose(2, 3)
+        v = v.view(b, self.n_heads, self.k_channels, s).transpose(2, 3)
+        attn_mask = None
+        if ref_mask is not None:
+            m = ref_mask.unsqueeze(1).bool()  # [B, 1, 1, S]
+            attn_mask = torch.zeros(b, 1, 1, s, dtype=q.dtype, device=q.device).masked_fill(
+                ~m, -torch.finfo(q.dtype).max
+            )
+        o = F.scaled_dot_product_attention(
+            q, k, v, attn_mask=attn_mask, dropout_p=self.p_dropout if self.training else 0
+        )
+        o = o.transpose(2, 3).contiguous().view(b, d, t)
+        return self.conv_o(o)
+
+
 # modified from https://github.com/sh-lee-prml/HierSpeechpp/blob/main/modules.py#L390
 class DiTConVBlock(nn.Module):
     """
     A DiT block with adaptive layer norm zero (adaLN-Zero) conditioning.
     """
 
-    def __init__(self, hidden_channels, filter_channels, num_heads, kernel_size=3, p_dropout=0.1, gin_channels=0):
+    def __init__(
+        self,
+        hidden_channels,
+        filter_channels,
+        num_heads,
+        kernel_size=3,
+        p_dropout=0.1,
+        gin_channels=0,
+        use_cross_attn=False,
+    ):
         super().__init__()
         self.norm1 = nn.LayerNorm(hidden_channels, elementwise_affine=False)
         self.attn = MultiHeadAttention(hidden_channels, hidden_channels, num_heads, p_dropout)
@@ -100,13 +152,23 @@ class DiTConVBlock(nn.Module):
             nn.SiLU(),
             nn.Linear(hidden_channels, 6 * hidden_channels, bias=True),
         )
+        # Phase 3 MRTE: 参照 mel 系列への cross-attention。use_cross_attn=True のときのみ生成する。
+        # cross_gate は zero-init（既存 adaLN-Zero の gate と同流儀）で、追加直後の出力は現行とビット一致。
+        # 学習開始後は conv_o が非 zero-init のためゲートに勾配が流れて立ち上がる（ReZero/adaLN-Zero 同挙動）。
+        self.use_cross_attn = use_cross_attn
+        if use_cross_attn:
+            self.norm_cross = nn.LayerNorm(hidden_channels, elementwise_affine=False)
+            self.cross_attn = CrossAttention(hidden_channels, gin_channels, num_heads, p_dropout)
+            self.cross_gate = nn.Parameter(torch.zeros(1, hidden_channels, 1))
 
-    def forward(self, x, c, x_mask):
+    def forward(self, x, c, x_mask, ref_seq=None, ref_mask=None):
         """
         Args:
             x : [batch_size, channel, time]
             c : [batch_size, channel]
             x_mask : [batch_size, 1, time]
+            ref_seq : [batch_size, gin_channels, T_ref]（MRTE 参照系列。None なら cross-attn 無効）
+            ref_mask : [batch_size, 1, T_ref]（1=valid）
         return the same shape as x
         """
         x = x * x_mask
@@ -122,6 +184,10 @@ class DiTConVBlock(nn.Module):
             * self.attn(self.modulate(self.norm1(x.transpose(1, 2)).transpose(1, 2), shift_msa, scale_msa), attn_mask)
             * x_mask
         )
+        # MRTE cross-attention（self-attn の後・FFN の前）。cross_gate=0 の初期は寄与ゼロ＝ビット不変
+        if self.use_cross_attn and ref_seq is not None:
+            xn = self.norm_cross(x.transpose(1, 2)).transpose(1, 2)
+            x = x + self.cross_gate * self.cross_attn(xn, ref_seq, ref_mask) * x_mask
         x = x + gate_mlp * self.mlp(
             self.modulate(self.norm2(x.transpose(1, 2)).transpose(1, 2), shift_mlp, scale_mlp), x_mask
         )

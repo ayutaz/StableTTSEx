@@ -167,6 +167,90 @@ def test_compiled_estimator_preserves_state_dict_keys():
     fresh.load_state_dict(model.state_dict(), strict=True)
 
 
+def test_mrte_full_config_param_count():
+    # Phase 3 MRTE: use_mrte=True の full config パラメータ数（6ブロック× cross_attn conv q/k/v/o + cross_gate
+    # + fake_ref）。既存チェックポイントとの非互換を意図的に厳密固定する不変条件
+    from dataclasses import asdict
+
+    from config import MelConfig, ModelConfig
+    from models.model import StableTTS
+    from text import symbols
+
+    model = StableTTS(len(symbols), MelConfig().n_mels, **{**asdict(ModelConfig()), "use_mrte": True})
+    assert sum(p.numel() for p in model.parameters()) == 33_225_345
+
+
+def test_mrte_zero_gate_bit_identical(tiny_stabletts):
+    # zero-init ゲートにより、MRTE モデルに baseline 重みを strict=False 部分ロードした直後の synthesise 出力は
+    # cross-attn を持たない baseline と byte-identical（追加項 = cross_gate(=0) * cross_attn = 0）
+    base = tiny_stabletts(use_mrte=False)
+    mrte = tiny_stabletts(use_mrte=True)
+    missing, unexpected = mrte.load_state_dict(base.state_dict(), strict=False)
+    assert unexpected == []  # baseline は MRTE の真部分集合
+    assert all(("cross" in k or "fake_ref" in k) for k in missing)  # 欠落は MRTE キーのみ
+
+    x, x_lengths = _text_inputs()
+    y_ref = torch.randn(1, TINY_N_MELS, 16)
+    torch.manual_seed(5)
+    base_out = base.synthesise(x, x_lengths, n_timesteps=4, temperature=0.0, y=y_ref, solver="euler")
+    torch.manual_seed(5)
+    mrte_out = mrte.synthesise(x, x_lengths, n_timesteps=4, temperature=0.0, y=y_ref, solver="euler")
+    assert torch.equal(base_out["decoder_outputs"], mrte_out["decoder_outputs"])
+
+
+def test_mrte_zero_gate_bit_identical_cfg_path(tiny_stabletts):
+    # zero-gate の byte-identity を webui/api 既定の CFG 経路（cfg=3 → cfg_wrapper の fake_ref uncond）でも固定する。
+    # cfg=1.0 の直行経路は cfg_wrapper を通らないため、fake_ref.expand / uncond の ref_seq null 化配線を別途ガードする
+    base = tiny_stabletts(use_mrte=False)
+    mrte = tiny_stabletts(use_mrte=True)
+    mrte.load_state_dict(base.state_dict(), strict=False)  # cross_gate=0 のまま
+
+    x, x_lengths = _text_inputs()
+    y_ref = torch.randn(1, TINY_N_MELS, 16)
+    kw = dict(n_timesteps=4, temperature=0.0, y=y_ref, solver="euler", cfg=3.0, cfg_rescale=0.7, sway_coef=-1.0)
+    torch.manual_seed(8)
+    base_out = base.synthesise(x, x_lengths, **kw)
+    torch.manual_seed(8)
+    mrte_out = mrte.synthesise(x, x_lengths, **kw)
+    assert torch.equal(base_out["decoder_outputs"], mrte_out["decoder_outputs"])
+
+
+def test_mrte_state_dict_superset(tiny_stabletts):
+    base = tiny_stabletts(use_mrte=False)
+    mrte = tiny_stabletts(use_mrte=True)
+    bk, mk = set(base.state_dict().keys()), set(mrte.state_dict().keys())
+    assert bk < mk  # 真部分集合
+    assert all(("cross" in k or "fake_ref" in k) for k in (mk - bk))  # 差分は MRTE キーのみ
+
+
+def test_mrte_gate_perturb_changes_output(tiny_stabletts):
+    # cross_gate を非零にすると出力が変わる（cross-attn 配線が生きている保証）
+    mrte = tiny_stabletts(use_mrte=True)
+    x, x_lengths = _text_inputs()
+    y_ref = torch.randn(1, TINY_N_MELS, 16)
+    torch.manual_seed(6)
+    out0 = mrte.synthesise(x, x_lengths, n_timesteps=4, temperature=0.0, y=y_ref, solver="euler")
+    with torch.no_grad():
+        for blk in mrte.decoder.estimator.blocks:
+            blk.block.cross_gate.fill_(0.5)
+    torch.manual_seed(6)
+    out1 = mrte.synthesise(x, x_lengths, n_timesteps=4, temperature=0.0, y=y_ref, solver="euler")
+    assert not torch.allclose(out0["decoder_outputs"], out1["decoder_outputs"])
+
+
+def test_mrte_forward_training_finite(tiny_stabletts):
+    # use_mrte=True の学習経路（参照系列 drop 込み）が有限3損失を返す
+    model = tiny_stabletts(use_mrte=True)
+    x, x_lengths = _text_inputs()
+    y = torch.randn(1, TINY_N_MELS, 48)
+    y_lengths = torch.tensor([48], dtype=torch.long)
+    z = torch.randn(1, TINY_N_MELS, 16)
+    z_lengths = torch.tensor([16], dtype=torch.long)
+    torch.manual_seed(0)
+    losses = model.forward(x, x_lengths, y, y_lengths, z, z_lengths)[:3]
+    assert all(torch.isfinite(loss) for loss in losses)
+
+
 def test_default_kwargs_do_not_add_parameters():
     # Phase 1/2 の新引数は plain 属性で nn.Parameter/buffer を増やさない
     # → 既存チェックポイントが strict=True でロード可能（キー集合が不変）

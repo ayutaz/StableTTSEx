@@ -24,6 +24,7 @@ class CFMDecoder(torch.nn.Module):
         timestep_sampling="cosine",
         logit_normal_m=0.0,
         logit_normal_s=1.0,
+        use_mrte=False,
     ):
         super().__init__()
         self.noise_channels = noise_channels
@@ -51,10 +52,23 @@ class CFMDecoder(torch.nn.Module):
             n_heads,
             kernel_size,
             gin_channels,
+            use_mrte=use_mrte,
         )
 
     @torch.inference_mode()
-    def forward(self, mu, mask, n_timesteps, temperature=1.0, c=None, solver=None, cfg_kwargs=None, sway_coef=None):
+    def forward(
+        self,
+        mu,
+        mask,
+        n_timesteps,
+        temperature=1.0,
+        c=None,
+        solver=None,
+        cfg_kwargs=None,
+        sway_coef=None,
+        ref_seq=None,
+        ref_mask=None,
+    ):
         """Forward diffusion
 
         Args:
@@ -85,17 +99,19 @@ class CFMDecoder(torch.nn.Module):
             s = min(max(float(sway_coef), -1.0), 1.75)
             t_span = t_span + s * (torch.cos(torch.pi / 2 * t_span) - 1 + t_span)
 
-        # cfg control
+        # cfg control（MRTE: 参照系列は t 不変なので partial に一度だけ bind する）
         if cfg_kwargs is None:
-            estimator = functools.partial(self.estimator, mask=mask, mu=mu, c=c)
+            estimator = functools.partial(self.estimator, mask=mask, mu=mu, c=c, ref_seq=ref_seq, ref_mask=ref_mask)
         else:
-            estimator = functools.partial(self.cfg_wrapper, mask=mask, mu=mu, c=c, cfg_kwargs=cfg_kwargs)
+            estimator = functools.partial(
+                self.cfg_wrapper, mask=mask, mu=mu, c=c, cfg_kwargs=cfg_kwargs, ref_seq=ref_seq, ref_mask=ref_mask
+            )
 
         trajectory = odeint(estimator, z, t_span, method=solver, rtol=1e-5, atol=1e-5)
         return trajectory[-1]
 
     # cfg inference
-    def cfg_wrapper(self, t, x, mask, mu, c, cfg_kwargs):
+    def cfg_wrapper(self, t, x, mask, mu, c, cfg_kwargs, ref_seq=None, ref_mask=None):
         cfg_strength = cfg_kwargs["cfg_strength"]
         cfg_interval = cfg_kwargs.get("cfg_interval")  # None or (t_min, t_max)
         cfg_rescale = cfg_kwargs.get("cfg_rescale", 0.0)  # 0.0 = off (Lin+ 2023 arXiv:2305.08891 §3.4)
@@ -103,7 +119,7 @@ class CFMDecoder(torch.nn.Module):
         slg_layers = cfg_kwargs.get("slg_layers", (2,))
         slg_t_range = cfg_kwargs.get("slg_t_range", (0.0, 0.5))
 
-        cond_output = self.estimator(t, x, mask, mu, c)
+        cond_output = self.estimator(t, x, mask, mu, c, ref_seq=ref_seq, ref_mask=ref_mask)
         t_now = float(t)
 
         output = cond_output
@@ -111,7 +127,10 @@ class CFMDecoder(torch.nn.Module):
         if cfg_strength != 1.0 and (cfg_interval is None or cfg_interval[0] <= t_now <= cfg_interval[1]):
             fake_speaker = cfg_kwargs["fake_speaker"].repeat(x.size(0), 1)
             fake_content = cfg_kwargs["fake_content"].repeat(x.size(0), 1, x.size(-1))
-            uncond_output = self.estimator(t, x, mask, fake_content, fake_speaker)
+            # MRTE: uncond 側は参照系列も null（fake_ref）に落として話者を除去する（CFG が話者を誘導するため）
+            fake_ref = cfg_kwargs.get("fake_ref")
+            fr = fake_ref.expand(x.size(0), -1, 1) if (fake_ref is not None and ref_seq is not None) else None
+            uncond_output = self.estimator(t, x, mask, fake_content, fake_speaker, ref_seq=fr, ref_mask=None)
             output = uncond_output + cfg_strength * (cond_output - uncond_output)
             if cfg_rescale > 0.0:
                 std_cond = cond_output.std(dim=(1, 2), keepdim=True)
@@ -119,11 +138,11 @@ class CFMDecoder(torch.nn.Module):
                 rescaled = output * (std_cond / (std_cfg + 1e-8))
                 output = cfg_rescale * rescaled + (1.0 - cfg_rescale) * output
         if slg_scale > 0.0 and slg_t_range[0] <= t_now < slg_t_range[1]:
-            skip_output = self.estimator(t, x, mask, mu, c, skip_layers=slg_layers)
+            skip_output = self.estimator(t, x, mask, mu, c, skip_layers=slg_layers, ref_seq=ref_seq, ref_mask=ref_mask)
             output = output + slg_scale * (cond_output - skip_output)
         return output
 
-    def compute_loss(self, x1, mask, mu, c, return_hidden=False):
+    def compute_loss(self, x1, mask, mu, c, return_hidden=False, ref_seq=None, ref_mask=None):
         """Computes diffusion loss
 
         Args:
@@ -162,8 +181,12 @@ class CFMDecoder(torch.nn.Module):
 
         t_in = t.squeeze()
         if return_hidden:
-            pred, hidden_list = self.estimator(t_in, y, mask, mu, c, return_hidden=True)
+            pred, hidden_list = self.estimator(
+                t_in, y, mask, mu, c, return_hidden=True, ref_seq=ref_seq, ref_mask=ref_mask
+            )
             loss = F.mse_loss(pred, u, reduction="sum") / (torch.sum(mask) * u.size(1))
             return loss, y, hidden_list, t_in
-        loss = F.mse_loss(self.estimator(t_in, y, mask, mu, c), u, reduction="sum") / (torch.sum(mask) * u.size(1))
+        loss = F.mse_loss(
+            self.estimator(t_in, y, mask, mu, c, ref_seq=ref_seq, ref_mask=ref_mask), u, reduction="sum"
+        ) / (torch.sum(mask) * u.size(1))
         return loss, y
