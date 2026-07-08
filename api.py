@@ -41,11 +41,13 @@ def get_vocoder(model_path, model_name="ffgan") -> nn.Module:
 
 
 class StableTTSAPI(nn.Module):
-    def __init__(self, tts_model_path, vocoder_model_path, vocoder_name="ffgan"):
+    def __init__(self, tts_model_path, vocoder_model_path, vocoder_name="ffgan", tts_model_config=None):
         super().__init__()
 
         self.mel_config = MelConfig()
-        self.tts_model_config = ModelConfig()
+        # チェックポイントに合わせて ModelConfig を差し替え可能にする（例: MRTE 有無の異なるチェックポイントを
+        # それぞれ strict ロードして A/B 比較する場合）。None なら現行どおり既定 ModelConfig()
+        self.tts_model_config = tts_model_config if tts_model_config is not None else ModelConfig()
 
         self.mel_extractor = LogMelSpectrogram(**asdict(self.mel_config))
 
