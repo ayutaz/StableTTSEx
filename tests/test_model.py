@@ -296,7 +296,9 @@ def test_full_config_param_count_and_embedding():
     from models.model import StableTTS
     from text import symbols
 
-    model = StableTTS(len(symbols), MelConfig().n_mels, **asdict(ModelConfig()))
+    # use_mrte=False の正準アーキ（MRTE 有り 33,225,345 は test_mrte_full_config_param_count で別途固定）。
+    # ModelConfig の既定が MRTE ラン用に True でも、この互換ガードは常に正準値を検証する
+    model = StableTTS(len(symbols), MelConfig().n_mels, **{**asdict(ModelConfig()), "use_mrte": False})
     assert sum(p.numel() for p in model.parameters()) == 31_644_545
     assert tuple(model.encoder.emb.weight.shape) == (401, 256)
 

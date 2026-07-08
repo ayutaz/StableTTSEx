@@ -33,8 +33,9 @@ class ModelConfig:
     # Phase 3 MRTE: 参照 mel 系列への cross-attention（デコーダに cross-attn を追加）。既定 False で現行と
     # 完全一致（param 数 31,644,545 不変）。True で state_dict にキーが増える（=既存チェックポイントとは
     # strict=False 部分ロード + zero-init ゲートで初期挙動一致 → 継続学習）。ModelConfig 側に置くのは
-    # チェックポイント構造を変えるアーキ設定だから（TLA-SA は state_dict 不変なので TrainConfig）
-    use_mrte: bool = False
+    # チェックポイント構造を変えるアーキ設定だから（TLA-SA は state_dict 不変なので TrainConfig）。
+    # Phase 3 第二弾 MRTE ラン: True
+    use_mrte: bool = True
 
 
 @dataclass
@@ -46,9 +47,10 @@ class TrainConfig:
     batch_size: int = 32
     learning_rate: float = 1e-4
     num_epochs: int = 15
-    # Phase 3 TLA-SA ラン。R1/R2 と対称に専用ディレクトリへ隔離する。初期値 upstream checkpoint_0.pt を
-    # このディレクトリ直下に置くこと（continue_training は model_save_path 直下から初期値を探すため）
-    model_save_path: str = "./checkpoints/vast_run3"
+    # Phase 3 第二弾 MRTE ラン。専用ディレクトリへ隔離する。初期値は **japanese-378h の checkpoint_14 を
+    # このディレクトリ直下に checkpoint_0.pt として置く**（continue_training が model_save_path 直下から初期値を
+    # 探し、strict=False 部分ロードで MRTE cross-attn を zero-init 立ち上げる）
+    model_save_path: str = "./checkpoints/vast_run4"
     log_dir: str = "./runs"
     log_interval: int = 16
     save_interval: int = 1
@@ -86,7 +88,8 @@ class TrainConfig:
     # （TLASAHead は train.py 側の独立モジュールで、StableTTS の state_dict には一切足さない）。
     # 教師 SV エンコーダは評価の ECAPA とは別系統にする（テストに教えるバイアス回避）。
     # 埋め込みは precompute_spk_emb.py で事前計算し filelist に spk_emb_path を追加しておく。
-    use_tla_sa: bool = True
+    # Phase 3 第二弾 MRTE ランでは off（MRTE 単独の効果を切り分ける。TLA-SA は WavLM 教師で不発）
+    use_tla_sa: bool = False
     tla_sa_lambda: float = 0.5  # L = L_CFM(等) + λ·L_TLA-SA。学習初期に sa/diff 比を見て再調整する
     tla_sa_alpha: float = 0.01  # 層重み w のエントロピー正則係数
     tla_sa_teacher: str = "wavlm_sv"  # スモークは vendor 不要の wavlm_sv(512次元)。本命は campplus(192次元, Apache-2.0)

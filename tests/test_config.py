@@ -36,20 +36,18 @@ def test_model_config_architecture_constants():
     assert c.n_dec_layers % 2 == 0
 
 
-def test_train_config_phase3_tla_sa_recipe():
+def test_train_config_phase3_mrte_recipe():
     t = TrainConfig()
-    # 現在の学習設定は Phase 3 第一弾 = TLA-SA（cosine + EMA無 + 補助話者整列損失）。
-    # baseline japanese-378h(cosine) と揃え、logit_normal(Phase 2 で不採用)は cosine に戻して切り分ける
+    m = ModelConfig()
+    # 現在の学習設定は Phase 3 第二弾 = MRTE（cosine + EMA無 + TLA-SA off + 参照 cross-attention）。
+    # baseline japanese-378h(cosine) と揃え、MRTE 単独の効果を切り分ける
     assert t.timestep_sampling == "cosine"
     assert t.use_ema is False
-    # TLA-SA 有効。教師はスモーク用 wavlm_sv(512次元)。出力は vast_run3 に隔離（R1/R2 と対称）
-    assert t.use_tla_sa is True
-    assert (t.tla_sa_lambda, t.tla_sa_alpha) == (0.5, 0.01)
-    assert t.tla_sa_teacher == "wavlm_sv"
-    assert t.tla_sa_teacher_dim == 512
-    assert t.tla_sa_uniform_weight is False
-    assert t.model_save_path == "./checkpoints/vast_run3"
-    # Tier 1/2 学習最適化は据え置き（数値精度のみ変わり、チェックポイント形式・n_vocab・param数・推論経路は不変）
+    assert t.use_tla_sa is False  # 第二弾は MRTE 単独（TLA-SA は WavLM 教師で不発）
+    # MRTE 有効はアーキ設定なので ModelConfig 側。出力は vast_run4 に隔離
+    assert m.use_mrte is True
+    assert t.model_save_path == "./checkpoints/vast_run4"
+    # Tier 1/2 学習最適化は据え置き（数値精度のみ変わり、チェックポイント形式・n_vocab・推論経路は不変）
     assert t.use_amp is True
     assert t.grad_clip == 1.0
     assert t.use_fused_optimizer is True
