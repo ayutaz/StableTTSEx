@@ -91,8 +91,12 @@ StableTTS は話者ベクトル（MelStyleEncoder 出力）が duration predicto
 - [x] HF へのアップロード（public 公開: [事前学習](https://huggingface.co/ayousanz/stable-tts-v1.1-japanese-378h) / [ft](https://huggingface.co/ayousanz/stable-tts-v1.1-japanese-378h-tsukuyomi-ft) / [baseline](https://huggingface.co/ayousanz/stable-tts-v1.1-tsukuyomi-ft-baseline)。license: other / moe-speech-terms）
 - [x] README / CLAUDE.md にモデルカード相当の情報（データ・フィルタ条件・g2p 設定）を記録
 
-### 研究フェーズ（2026-07-06〜、事前学習の後続）
-事前学習完了後、アーキテクチャ改善の調査を [architecture-improvement-research.md](architecture-improvement-research.md) にまとめ、Phase 1（再学習不要の推論改善）を実装・評価済み。成果は Sway Sampling（低ステップで dopri5 品質・約10倍高速）と CFG rescale（飽和抑制）で、webui 既定に採用。ボコーダは BigVGAN v2（MIT）を追加。次は Phase 2（logit-normal timestep + EMA での再事前学習）を検討。
+### 研究フェーズ（2026-07-06〜07-08、事前学習の後続）✅ クローズ済み
+事前学習完了後、アーキテクチャ改善の調査を [architecture-improvement-research.md](architecture-improvement-research.md) にまとめ、3フェーズを実施・評価してクローズした。全体像は [research-summary.md](research-summary.md)（研究サマリのエントリポイント）、Phase 3 の総括は [phase3-plan.md §13](phase3-plan.md) を参照。
+
+- **Phase 1（再学習不要の推論改善）= 一部採用**: Sway Sampling（euler 等の固定ステップソルバー専用、sway_coef=−1.0 で低ステップでも dopri5 品質・約10倍高速）と CFG rescale（過剰 CFG の飽和抑制、推奨 0.7）を webui 既定に採用。SLG（Skip Layer Guidance）は6層デコーダで悪化し不採用。ボコーダは BigVGAN v2（MIT）を追加。デフォルト無効時は既存挙動とビット一致で既存チェックポイント互換。
+- **Phase 2（レシピ再学習 = logit-normal timestep + EMA）= 不採用**: upstream checkpoint_0 から 15ep。dopri25 公平比較で発音（CER）は悪化させないが、話者類似性（ECAPA spk_cos）が baseline 0.6502 に対し全3話者一貫して −0.020 劣化。聴感 A/B でも差を体感できず。
+- **Phase 3（構造変更再学習）= TLA-SA / MRTE の両方とも不採用でクローズ**: pooled style vector ボトルネック（MelStyleEncoder が参照 mel を単一 256 次元ベクトルに潰し FiLM 変調にしか入れない）の解消を狙った。3-1 TLA-SA（補助話者整列損失）は spk_cos −0.009、3-2 MRTE（参照 mel 系列への cross-attention）は −0.007 で、いずれも改善せず。共通の失敗要因は「既に pooled style vector で学習済みの重みに後付けした」こと（新機構を使わない方向に収束）。→ pooled ボトルネックの緩和には後付け継続学習は原理的に向かないことを実証（価値ある否定的結果）。実装済みの TLA-SA / MRTE コードは既定 False で残置（ビット一致、将来のスクラッチ学習で再利用可能）。
 
 ## 5. 懸念事項とリスク
 
@@ -102,19 +106,28 @@ StableTTS は話者ベクトル（MelStyleEncoder 出力）が duration predicto
 | 2 | ライセンス（moe-speech は著作権法30条の4の情報解析目的限定・再配布禁止） | 公開方法を誤ると規約違反 | データ本体は再配布しない。学習済みモデルの公開は過去実績と同様 **gated + 用途申告制**。商用利用可否はライセンス原文を再確認してから判断 |
 | 3 | NSFW 系音声の混入（Not-For-All-Audiences タグ） | 生成モデルの挙動・公開時の印象 | moe-speech 本体は不適切音声の除去済みとされるが、UTMOS フィルタに加えテキスト側の簡易フィルタ追加を M2 で検討 |
 | 4 | vast.ai インスタンスの突然の停止（ホスト都合・障害） | 学習中断・インスタンスディスク上のデータ喪失 | 自動レジューム + チェックポイントを epoch ごとに HF へ同期。データ原本は HF から再取得可能。ネットワークボリュームはオファー0件で使えないため（2026-07-06 時点）この同期戦略で代替 |
-| 5 | VRAM 不足（5090 は 32GB/枚、最長15秒 ≈ 1290 mel フレーム） | OOM で学習停止 | バケットサンプラーで同長がまとまるため長尺バッチがピーク。M4 で実測し batch_size を調整（64 起点） |
-| 6 | MAS（CPU/numba）がボトルネックになる可能性 | GPU 利用率低下で学習が遅い | M4 の実測で判明する。深刻なら DataLoader worker 数調整等で緩和 |
+| 5 | VRAM 不足（5090 は 32GB/枚、最長15秒 ≈ 1290 mel フレーム） | OOM で学習停止 | バケットサンプラーで同長がまとまるため長尺バッチがピーク。M4 で実測し batch_size を調整（64 起点）。**解消**: batch 32×2GPU（実効64）で VRAM ピークは 32GB 内に収束（M4） |
+| 6 | MAS（CPU/numba）がボトルネックになる可能性 | GPU 利用率低下で学習が遅い | M4 の実測で判明する。深刻なら DataLoader worker 数調整等で緩和。**解消**: 平均 6〜7 it/s・約10分/epoch を実測しボトルネックにならず（M4） |
 | 7 | 破滅的忘却（中英能力の喪失） | 多言語用途には使えなくなる | 意図的なトレードオフとして許容（§2）。多言語が必要な場面では本家チェックポイントを使い分け |
 | 8 | g2p 切替（use_vanilla=False）と既存チェックポイントの混用 | 本家チェックポイントで推論すると学習時と読み分布が微妙にずれる | 新モデルとセットで運用する前提を README に明記。本家モデルの再評価が必要な場合のみ一時的に True に戻す |
 | 9 | 過学習・話者リーク | 評価が過大に見える | ホールドアウト話者で評価（M2/M6）。エポック別チェックポイント比較で選定 |
 | 10 | Windows 環境固有の問題（DDP gloo 分岐等） | 学習スクリプトの想定外動作 | 単一GPUなので DDP の複雑さはほぼ回避。M4 の試走で洗い出す |
 
-## 6. 未決事項（着手前に確定が必要）
+## 6. 未決事項
 
-1. **フィルタ閾値の最終値**（M2 で分布を見て決定。UTMOS 閾値を上げるほど品質↑・量↓）
-2. **モデル公開の要否と範囲**（M7。非公開でローカル利用のみでも計画は成立する）
+事前学習（M0-M7）と後続研究フェーズ（Phase 1-3）が完了したため、当初の未決事項はすべて決着した。
 
-（解決済み）実行環境はローカルではなく vast.ai の 2×RTX 5090 に決定（2026-07-06、API 調査に基づく。§3 参照）
+（決着済み）
+- **フィルタ閾値の最終値** → M2 で speechMOS ≥ 1.5 / ASR一致度 ≥ 0.90 / 1〜15秒 に確定（UTMOS 閾値案は演技音声を系統的に低採点するため不採用）
+- **モデル公開の要否と範囲** → M7 で HF に3モデルを public 公開（[事前学習 378h](https://huggingface.co/ayousanz/stable-tts-v1.1-japanese-378h) / [tsukuyomi-ft](https://huggingface.co/ayousanz/stable-tts-v1.1-japanese-378h-tsukuyomi-ft) / [baseline](https://huggingface.co/ayousanz/stable-tts-v1.1-tsukuyomi-ft-baseline)、license: other / moe-speech-terms）
+- **実行環境** → vast.ai の 2×RTX 5090 に確定（2026-07-06、API 調査に基づく。§3 参照）
+- **ゼロショット話者類似性の改善手段** → Phase 3 で TLA-SA / MRTE を試し両方不採用（[phase3-plan.md §13](phase3-plan.md)）。後付け継続学習では pooled ボトルネックを解けないと実証
+
+**残る検討事項（今後の方向性、別途計画として整理）**: pooled ボトルネックを本当に解くには大きめの投資が必要で、以下4案が候補（詳細は [phase3-plan.md §13](phase3-plan.md) / [research-summary.md](research-summary.md)）。
+1. **MRTE をスクラッチ学習**（upstream checkpoint_0 から MRTE 込みで学習し pooled 依存を作らせない。実装は流用可、config 変更のみ）
+2. **in-context infilling 全面移行**（F5/E2/ZipVoice 型。上限最高だが既存 checkpoint を捨てるリビルド、378h で暗黙アラインメント不安定）
+3. **データ拡張**（378h→数千時間規模。話者多様性がゼロショット類似性の上限を決める）
+4. **日本語アクセント高度化**（話者類似性でなく日本語品質そのものの改善。記号方式は実装済み、音素ごと連続高低・核位置の埋め込み追加）
 
 ## 7. 参考情報（今回の調査の実測値）
 

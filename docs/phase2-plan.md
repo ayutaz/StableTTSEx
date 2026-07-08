@@ -2,6 +2,8 @@
 
 作成日: 2026-07-07 / 対象: StableTTSEx（upstream v1.1、31.6M）/ 親文書: [architecture-improvement-research.md](architecture-improvement-research.md) §7 / 関連: [pretraining-report.md](pretraining-report.md)
 
+> 研究アーク全体（Phase 1→2→3）の俯瞰は [research-summary.md](research-summary.md) を参照。
+
 ## 0. 位置づけと原則
 
 Phase 1（推論のみ・再学習なし、[architecture-improvement-research.md §9](architecture-improvement-research.md)）は完了。Phase 2 は**モデル構造を一切変えず、学習の手続き（レシピ）だけ**を変えて moe-speech 378h を再事前学習するフェーズ（施策 5・6、任意で 7）。
@@ -200,4 +202,6 @@ held-out 3話者 × 日本語5文。既存 japanese-378h（cosine+EMA無）vs R2
 
 ### 結論
 
-判定基準「CER維持かつ spk/mel飽和/聴感のいずれかで有意改善」に対し **有意改善なし → 不採用**。悪化もないが公開モデルを差し替える理由もない（現行 japanese-378h 据え置き）。**レシピ変更（logit-normal + EMA）だけでは品質は向上しない**ことを定量+聴感で実証した。伸びしろは Phase 3（構造変更）にあり、[architecture-improvement-research.md §7](architecture-improvement-research.md) のロードマップに従い、ゼロショット話者類似性の改善（TLA-SA → MRTE、[phase3-plan.md](phase3-plan.md)）へ進む。
+判定基準「CER維持かつ spk/mel飽和/聴感のいずれかで有意改善」に対し **有意改善なし → 不採用**。悪化もないが公開モデルを差し替える理由もない（現行 japanese-378h 据え置き）。**レシピ変更（logit-normal + EMA）だけでは品質は向上しない**ことを定量+聴感で実証した。伸びしろは Phase 3（構造変更）にあり、[architecture-improvement-research.md §7](architecture-improvement-research.md) のロードマップに従い、ゼロショット話者類似性の改善（TLA-SA → MRTE、[phase3-plan.md](phase3-plan.md)）へ進んだ。
+
+なお続く Phase 3（構造変更再学習）も TLA-SA（spk_cos −0.009）・MRTE（同 −0.007）ともに不採用でクローズしており、「既に pooled style vector で学習済みの重みへの後付け継続学習」という共通の限界が Phase 2・3 を通じて実証された（詳細は [phase3-plan.md §13](phase3-plan.md#13-phase-3-総括2026-07-08-クローズ)）。

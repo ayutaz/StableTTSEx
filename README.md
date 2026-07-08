@@ -25,6 +25,10 @@ As the first open-source TTS model that tried to combine flow-matching and DiT, 
 
 ## News
 
+2026 (this fork): **Faster inference adopted** — Sway Sampling (`sway_coef`) and CFG rescale (`cfg_rescale`) landed as opt-in, checkpoint-compatible options. The `solver='euler', step=16, sway_coef=-1.0` preset matches `dopri5`/25-step quality at roughly **10x speed**, and the WebUI now defaults to `euler / step=16 / sway_coef=-1.0 / cfg_rescale=0.7`. See `docs/research-summary.md`.
+
+2026 (this fork): **Speaker-similarity research paused (negative result)** — a continual-training recipe (logit-normal timesteps + EMA) and bolt-on structural changes (auxiliary speaker-alignment loss, reference cross-attention / MRTE) did **not** improve zero-shot speaker similarity at this training scale, so the work is closed. Details in `docs/research-summary.md` and `docs/phase3-plan.md`.
+
 2024/10: A new autoregressive TTS model is coming soon...
 
 2024/9: 🚀 **StableTTS V1.1 Released** ⭐ Audio quality is largely improved ⭐
