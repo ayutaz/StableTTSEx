@@ -18,6 +18,11 @@ tts_model_path = "./checkpoints/tsukuyomi_ft200.pt"
 vocoder_model_path = "./vocoders/pretrained/bigvgan_generator.pt"
 vocoder_type = "bigvgan"
 
+# 最終採用モデル（つくよみちゃん FT）用の既定参照音声。存在すれば UI に初期ロードして
+# ワンクリックで最終音声を確認できるようにする（無ければ None にフォールバック）
+default_ref_audio = "./temps/eval_ft_tyc/_参照音声.wav"
+default_ref_audio = default_ref_audio if os.path.exists(default_ref_audio) else None
+
 model = StableTTSAPI(tts_model_path, vocoder_model_path, vocoder_type).to(device)
 
 
@@ -118,7 +123,7 @@ def main():
                     value=example_text,
                 )
 
-                ref_audio_gr = gr.Audio(label="Reference Audio", type="filepath")
+                ref_audio_gr = gr.Audio(label="Reference Audio", type="filepath", value=default_ref_audio)
 
                 with gr.Accordion("参照音声の詳細設定", open=False):
                     multi_ref_gr = gr.Checkbox(label="参照を複数窓で平均", value=False)
