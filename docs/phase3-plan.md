@@ -167,6 +167,55 @@ CAM++ 教師への差し替えや λ 増強も選択肢だが、TLA-SA は「補
 - 学習参照 z（random_slice の短スライス）が推論の長参照と長さ非対称。z が数フレームに退化すると MRTE の旨味が減る。
 - cross_gate の立ち上がりを TensorBoard で監視（開かない兆候なら conv_o 小スケール init へ、ただし byte-identity は失う）。
 
+### MRTE 実施結果（2026-07-08）— 主目標未達
+
+japanese-378h（checkpoint_14）から MRTE cross-attn を zero-init で足して 15 epochs 継続学習（cosine / EMA無 / TLA-SA off、vast 2×RTX5090）。部分ロード検証はパス（missing 55=MRTE キーのみ・unexpected 0・cross_gate 全 zero スタート）。
+
+**しかし cross_gate が 0.0006〜0.0009 までしか開かなかった**（zero-init から微増のみ）。これは open risk「立ち上がりが遅い」の的中。
+
+**dopri25 A/B（n=15）:**
+
+| model | CER | spk_cos | mel_std | peak |
+|---|---|---|---|---|
+| baseline（japanese-378h） | 0.0013 | **0.6502** | 2.590 | 0.823 |
+| mrte | 0.0013 | 0.6432 | 2.572 | 0.816 |
+
+spk_cos 差 = **−0.007（改善せず微減）**、CER 同等、話者別で全3話者 baseline≥mrte、参照長スイープでも MRTE 優位なし（full/win5/win2 すべて baseline≥mrte）。スクリプト `temps/phase3_eval/`（`eval_phase3_mrte.py`, `results_mrte.json`, `agg_mrte.py`）。
+
+**原因**: japanese-378h からの継続学習ではモデルは既に pooled c で十分学習済みで、MRTE cross-attn を使うインセンティブが弱く（勾配が小さく）ゲートが開かない。生 Parameter zero-init ゲートは adaLN ゲート（Linear 出力）より立ち上がりが遅い。
+
+---
+
+## 13. Phase 3 総括（2026-07-08）— クローズ
+
+| フェーズ | 施策 | 初期値 | spk_cos 差 | 結論 |
+|---|---|---|---|---|
+| Phase 2 | logit_normal + EMA | upstream→15ep | −0.020 | 不採用 |
+| Phase 3-1 | TLA-SA（WavLM 教師・補助損失） | upstream→15ep | −0.009 | 不採用 |
+| Phase 3-2 | MRTE（参照 cross-attention） | japanese-378h→15ep | −0.007 | 不採用 |
+
+**結論: レシピ変更（Phase 2）も、後付けの構造変更（Phase 3 の TLA-SA / MRTE）も、この規模・条件では日本語ゼロショット話者類似性を改善できなかった。**
+
+### 共通の失敗要因
+
+3施策すべてに共通するのは「**既に pooled style vector で学習済みの重みに後付けした**」こと。
+
+- TLA-SA: 補助損失の projection head が表現力十分で、デコーダ本体を弱くしか使わず整列を達成（下流に転移せず）。
+- MRTE: モデルは pooled c で足りているため cross-attn を使うインセンティブが弱く、cross_gate が 0.0006 までしか開かなかった。
+
+→ **pooled ボトルネックの緩和には「後付け継続学習」は原理的に向かない**（既存の到達点が局所最適で、新機構を使わない方向に落ち着く）ことが2回の実験で実証された。
+
+### 今後の方向性（別途計画）
+
+pooled ボトルネックを本当に解くには、以下のいずれか。いずれも大きめの投資で、別途計画として扱う:
+
+1. **MRTE をスクラッチ学習**（upstream `checkpoint_0` から MRTE 込みで学習し、pooled 依存を作らせず最初から cross-attn を使わせる）。実装は既にあるので config 変更のみ。ただし日本語 378h を一から学習し直す。
+2. **in-context infilling 全面移行**（F5/E2/ZipVoice 型。上限は最高だが既存 checkpoint を捨てるリビルド、378h で暗黙アラインメントが不安定というリスク）。
+3. **データ拡張**（378h→数千時間規模。話者多様性がゼロショット類似性の上限を決めるため、レシピ・構造よりデータが効く可能性）。
+4. **日本語アクセント高度化**（話者類似性ではなく日本語品質そのものの改善。記号方式は実装済みなので、音素ごと連続高低・核位置の埋め込み追加）。
+
+実装済みの TLA-SA / MRTE コードは既定 False で残置（`use_tla_sa` / `use_mrte`、いずれも現行とビット一致）。スクラッチ学習や pooled 段階除去で再評価する際にそのまま使える。
+
 ---
 
 ## 10. 主要出典
